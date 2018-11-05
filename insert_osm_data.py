@@ -13,19 +13,19 @@ from xml.etree.cElementTree import iterparse
 
 class OsmHandler(object):
     """Base class for parsing OSM XML data"""
-    def __init__(self, client, collection):
+    def __init__(self, client, db):
         self.client = client
-        self.collection = client[collection]
+        self.db = client[db]
 
-        #self.collection.nodes.ensure_index([('loc', pymongo.GEO2D)])
-        self.collection.nodes.ensure_index([('id', pymongo.ASCENDING),
+        #self.db.nodes.ensure_index([('loc', pymongo.GEO2D)])
+        self.db.nodes.ensure_index([('id', pymongo.ASCENDING),
                                             ('version', pymongo.DESCENDING)])
 
-        #self.collection.ways.ensure_index([('loc', pymongo.GEO2D)])
-        self.collection.ways.ensure_index([('id', pymongo.ASCENDING),
+        #self.db.ways.ensure_index([('loc', pymongo.GEO2D)])
+        self.db.ways.ensure_index([('id', pymongo.ASCENDING),
                                            ('version', pymongo.DESCENDING)])
 
-        self.collection.relations.ensure_index([('id', pymongo.ASCENDING),
+        self.db.relations.ensure_index([('id', pymongo.ASCENDING),
                                                 ('version', pymongo.DESCENDING)])
         self.stat_nodes = 0
         self.stat_ways = 0
@@ -95,7 +95,7 @@ class OsmHandler(object):
                 elif name == 'way':
                     # Insert remaining nodes
                     if len(nodes) > 0:
-                        self.collection.nodes.insert(nodes)
+                        self.db.nodes.insert(nodes)
                         nodes = []
 
                     record = self.fillDefault(attrs)
@@ -103,7 +103,7 @@ class OsmHandler(object):
                 elif name == 'relation':
                     # Insert remaining ways
                     if len(ways) > 0:
-                        self.collection.ways.insert(ways)
+                        self.db.ways.insert(ways)
                         ways = []
 
                     record = self.fillDefault(attrs)
@@ -118,19 +118,19 @@ class OsmHandler(object):
                                                   role=attrs['role']))
                     
                     if attrs['type'] == 'way':
-                        ways2relations = self.collection.ways.find_one({ '_id' : ref})
+                        ways2relations = self.db.ways.find_one({ '_id' : ref})
                         if ways2relations:
                             if 'relations' not in ways2relations:
                                 ways2relations['relations'] = []
                             ways2relations['relations'].append(record['_id'])
-                            self.collection.ways.save(ways2relations)
+                            self.db.ways.save(ways2relations)
                     elif attrs['type'] == 'node':
-                        nodes2relations = self.collection.nodes.find_one({ '_id' : ref})
+                        nodes2relations = self.db.nodes.find_one({ '_id' : ref})
                         if nodes2relations:
                             if 'relations' not in nodes2relations:
                                 nodes2relations['relations'] = []
                             nodes2relations['relations'].append(record['_id'])
-                            self.collection.nodes.save(nodes2relations)
+                            self.db.nodes.save(nodes2relations)
             elif 'end' == event:
                 """Finish parsing an element
                 (only really used with nodes, ways and relations)"""
@@ -141,7 +141,7 @@ class OsmHandler(object):
                         del record['key']
                     nodes.append(record)
                     if len(nodes) > 2500:
-                        self.collection.nodes.insert(nodes)
+                        self.db.nodes.insert(nodes)
                         nodes = []
                         self.writeStatsToScreen()
 
@@ -152,7 +152,7 @@ class OsmHandler(object):
                         del record['tag']
                     if len(record['key']) == 0:
                         del record['key']
-                    nds = dict((rec['_id'], rec) for rec in self.collection.nodes.find({ '_id': { '$in': record['nodes'] } }, { 'loc': 1, '_id': 1 }))
+                    nds = dict((rec['_id'], rec) for rec in self.db.nodes.find({ '_id': { '$in': record['nodes'] } }, { 'loc': 1, '_id': 1 }))
                     record['loc'] = dict()
                     locs = []
                     for node in record['nodes']:
@@ -164,7 +164,7 @@ class OsmHandler(object):
 
                     ways.append(record)
                     if len(ways) > 2000:
-                        self.collection.ways.insert(ways)
+                        self.db.ways.insert(ways)
                         ways = []
 
                     record = {}
@@ -178,7 +178,7 @@ class OsmHandler(object):
                         del record['tag']
                     if len(record['key']) == 0:
                         del record['key']
-                    self.collection.relations.save(record)
+                    self.db.relations.save(record)
                     record = {}
                     self.statsCount = self.statsCount + 1
                     if self.statsCount > 10:
@@ -190,7 +190,7 @@ class OsmHandler(object):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: %s <OSM filename> <collection>" % (sys.argv[0]))
+        print("Usage: %s <OSM filename> <dbname>" % (sys.argv[0]))
         sys.exit(-1)
 
     filename = sys.argv[1]
@@ -200,9 +200,9 @@ if __name__ == "__main__":
         sys.exit(-1)
 
     client = MongoClient()
-    collection = sys.argv[2]
+    db = sys.argv[2]
     #parser = make_parser()
-    handler = OsmHandler(client, collection)
+    handler = OsmHandler(client, db)
     #parser.setContentHandler(handler)
     #parser.parse(open(filename))
     handler.parse(open(filename))

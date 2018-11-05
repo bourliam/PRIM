@@ -1,21 +1,27 @@
+# Projet PRIM : analyse de la congestion routière
 
-visualistaion : QGis
 
-pb=!1m14!1m12!1m3!1d   37012.19549673365!2d  -1.6840613378197213!3d   48.10885402717424!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sfr!2sfr!4v1540891451682"
-
+## Zone étudiée : Rennes
 
 nord est lat=48.1440&lon=-1.6140
 sud ouest lat=48.0500&lon=-1.7550
 
-
+```
 [[48.1440,-1.6140],[48.0500,-1.7550]]
+```
 
-
+Pour compter le nombre de points à Rennes
+```
 db.getCollection('coyote_data').find({loc:{$geoWithin: {$geometry: {type: "Polygon" ,coordinates: [[[-1.6140, 48.1440], [-1.6140, 48.0500], [-1.7550, 48.0500], [-1.7550,48.1440], [-1.6140, 48.1440]]]}}}}).count()
+```
 
+Pour extraire les points de Rennes
+```
+mongoexport -h <server> -d <dbmane> -c <collection> -q '{"loc":{"$geoWithin": {"$geometry": {"type": "Polygon", "coordinates": [[[-1.6140, 48.1440], [-1.6140, 48.0500], [-1.7550, 48.0500], [-1.7550, 48.1440], [-1.6140, 48.1440]]]}}}}' -out <file>.json
+```
 
-({"loc":{"$geoWithin": {"$geometry": {"type": "Polygon", "coordinates": [[[-1.6140, 48.1440], [-1.6140, 48.0500], [-1.7550, 48.0500], [-1.7550, 48.1440], [-1.6140, 48.1440]]]}}}})
-
+Pour créer une mini collection de points de Rennes
+```
 db.coyote_data_rennes.aggregate([
    {
      $geoNear: {
@@ -29,15 +35,57 @@ db.coyote_data_rennes.aggregate([
      }
    }, { $out: "subset_rennes" }
 ])
+```
 
+## Importer les données OSM dans mongodb
 
+Utiliser le script `insert_osm_data.py`
+
+```
+python insert_osm_data.py <input-file>.osm <dbname>
+```
+
+Cela va créer 3 collections : 
+- nodes
+- ways
+- relations
+
+Pour obtenir une collection avec seulement les routes sur lesquelles passent les voitures:
+
+```
 db.ways.aggregate([
-    {$match: { key: {$in: ["highway"]}}},
-    {$out: "roads"}
+    {
+      $match: {
+        key:"highway",
+        "tag.v": {
+          $nin: [
+            "footway", 
+            "path", 
+            "pedestrian",
+            "track", 
+            "bus_guideway", 
+            "raceway", 
+            "bridleway", 
+            "steps", 
+            "cycleway", 
+            "construction", 
+            "proposed"
+          ]
+        }
+      }
+    },
+    {
+      $out: "roads"
+    }
 ])
+```
+Source: <https://wiki.openstreetmap.org/wiki/Key%3Ahighway>
 
-https://wiki.openstreetmap.org/wiki/Key%3Ahighway
 {key:"highway", "tag.v": {$nin: ["footway", "path", "pedestrian","track", "bus_guideway", "raceway", "bridleway", "steps", "cycleway", "construction", "proposed"]}}
 
+## Pour visualiser dans QGis:
 
-{"tag": {"$nin":["highway","footway"]}}
+Installer le plugin `qgis-mongodb-plugin-1.5.0.zip` (dans ce repo).
+Le code source est dispo ici : <https://github.com/bourliam/qgis-mongodb-plugin>
+C'est un fork adapté à QGIS 3 de ce plugin : <https://github.com/adrianaksan/qgis-mongodb-plugin>
+
