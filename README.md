@@ -1,6 +1,42 @@
 # Projet PRIM : analyse de la congestion routière
 
 
+## Commandes utiles:
+
+Se connecter à Lame10 :
+```
+ssh mbourliatoux@ssh.enst.fr
+ssh mbourliatoux@lame10
+```
+
+Faire un tunnel :
+```
+en local : ssh -N -L localhost:8888:localhost:8889 mbourliatoux@ssh.enst.fr
+sur ssh.enst.fr : ssh -N -L localhost:8889:localhost:8890 mbourliatoux@lame10
+```
+
+
+Lancer un notebook jupyter :
+```
+.local/bin/jupyter notebook --no-browser --port=8890
+```
+
+Faire des screens:
+```
+dans lame10: screen -S jupyterNotebook
+
+puis lancement du notebook sans navigateur sur le port 8890 :
+.local/bin/jupyter notebook --no-browser --port=8890
+
+détacher le "screen" :
+ctrl+A+D
+
+pour l'arreter :
+retourner sur le screen avec: screen -R jupyterNotebook 
+puis ctrl + C pour l'arreter
+```
+tuto screens : <https://www.linuxtricks.fr/wiki/screen-plusieurs-terminaux-virtuels-dans-un-seul>
+
 ## Zone étudiée : Rennes
 
 nord est lat=48.1440&lon=-1.6140
@@ -19,6 +55,7 @@ Pour extraire les points de Rennes
 ```
 mongoexport -h <server> -d <dbmane> -c <collection> -q '{"loc":{"$geoWithin": {"$geometry": {"type": "Polygon", "coordinates": [[[-1.6140, 48.1440], [-1.6140, 48.0500], [-1.7550, 48.0500], [-1.7550, 48.1440], [-1.6140, 48.1440]]]}}}}' -out <file>.json
 ```
+
 
 Pour créer une mini collection de points de Rennes
 ```
@@ -88,4 +125,13 @@ Source: <https://wiki.openstreetmap.org/wiki/Key%3Ahighway>
 Installer le plugin `qgis-mongodb-plugin-1.5.0.zip` (dans ce repo).
 Le code source est dispo ici : <https://github.com/bourliam/qgis-mongodb-plugin>
 C'est un fork adapté à QGIS 3 de ce plugin : <https://github.com/adrianaksan/qgis-mongodb-plugin>
+
+
+
+
+
+
+
+
+10270362 points modified / 10270362 in 10314.604 seconds  => 2h52
 

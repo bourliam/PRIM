@@ -1,2 +1,7 @@
 /random
 .vscode
+*.json
+*.qgz
+*.zip
+.ipynb_checkpoints/
+__pycache__/
