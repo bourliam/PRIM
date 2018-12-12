@@ -21,6 +21,46 @@ affect = Affect_road_to_point(collection,osm_roads, 10)
 affect.affect_para(os.cpu_count())
 """
 
+
+
+def get_north_azimut(coords):
+  """
+  Get the north azimut of a road by using its geometry.   
+  @params   
+  coords: The array of coordinates from the osm data.
+  """
+  degs = math.degrees(math.atan2((coords[-1][0] - coords[0][0]),(coords[-1][1] - coords[0][1])))
+  if degs < 0:
+      degs += 360.0
+  return degs
+
+
+def get_headings(road):
+  """
+  Get the headings of a road by using it's geometry.   
+  @params   
+  road: The object road from the osm data. (we need the coordinates, the keys and the tags)
+  """
+  coords = road['loc']['coordinates']
+  headings = []
+  heading = get_north_azimut(coords)
+  if 'oneway' in road['key']:
+      for tag in road['tag']:
+          if tag['k'] == 'oneway':
+              oneway=tag['v']
+              break
+      if oneway == '-1':
+          headings.append((heading + 180)%360)
+      else:
+          headings.append(heading)
+  else:
+      headings.append(heading)
+      headings.append((heading + 180)%360)
+  
+  return headings
+
+
+
 class Worker(Process):
   """
   Worker class. The thread that updates some of the points.
@@ -59,13 +99,21 @@ class Worker(Process):
           }
         }
       },
-      { "_id": 1}
+      { "_id": 1, "loc": 1, "key": 1, "tag": 1}
       )
       
+      heading = 0
+
       if road == None:
         road = {"_id": ""}
+      else:
+        headings = get_headings(road)
+        if len(headings) == 2:
+          if 180 - abs(abs(headings[0] - point['heading']) - 180) > 90:
+            heading = 1
 
-      requests.append(UpdateOne({ '_id': point['_id'] }, { '$set': { 'matching_road': road['_id'] } }))
+
+      requests.append(UpdateOne({ '_id': point['_id'] }, { '$set': { 'matching_road': road['_id'], 'heading_road': heading } }))
       
       count += 1
 
