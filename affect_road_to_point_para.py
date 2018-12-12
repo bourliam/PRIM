@@ -7,6 +7,7 @@ import math
 import os
 
 from threading import Thread
+from multiprocessing import Process
 
 
 """
@@ -20,20 +21,29 @@ affect = Affect_road_to_point(collection,osm_roads, 10)
 affect.affect_para(os.cpu_count())
 """
 
-class Worker(Thread):
+class Worker(Process):
   """
   Worker class. The thread that updates some of the points.
   """
 
-  def __init__(self, number, limit, collection, osm_roads, maxDistance):
-    Thread.__init__(self)
+  def __init__(self, number, limit, db_name, collection_name, db_osm_name, roads_name, maxDistance):
+    Process.__init__(self)
+    
+    self.db_name = db_name
+    self.collection_name = collection_name
+    self.db_osm_name = db_osm_name
+    self.roads_name = roads_name
     self.number = number
     self.limit = limit
-    self.collection = collection
-    self.osm_roads = osm_roads
     self.maxDistance = maxDistance
 
   def run(self):
+
+    client = MongoClient()
+
+    self.collection = client[self.db_name][self.collection_name]
+    self.osm_roads = client[self.db_osm_name][self.roads_name]
+
     requests = []
     count = 0
     
@@ -66,7 +76,10 @@ class Worker(Thread):
           requests = []
         except BulkWriteError as bwe:
           pprint(bwe.details)
-    
+      
+      if self.number == 0 and count % 10000 == 0:
+        print("Worker", self.number, ":", count, "points modified /", self.limit, end='\r', flush=True)
+
     if count % 1000 != 0:
       self.collection.bulk_write(requests)
 
@@ -83,11 +96,13 @@ class Affect_road_to_point:
   @maxDistance: the max distance between the point and the road (meters).    
   """
 
-  def __init__(self, collection, osm_roads, maxDistance):
-    self.collection = collection
-    self.osm_roads = osm_roads
-    self.maxDistance = maxDistance
+  def __init__(self, db_name, collection_name, db_osm_name, roads_name, maxDistance):
 
+    self.maxDistance = maxDistance
+    self.db_name = db_name
+    self.collection_name = collection_name
+    self.db_osm_name = db_osm_name
+    self.roads_name = roads_name
 
 
 
@@ -96,12 +111,15 @@ class Affect_road_to_point:
     Affect the roads using nb_workers threads.
     """
     start = time.time()
+    
+    client = MongoClient()
+    self.collection = client[self.db_name][self.collection_name]
+
     nbPoints = self.collection.count()
 
     limit = math.ceil(nbPoints / nb_workers)
 
-
-    threads = [ Worker(k, limit, self.collection, self.osm_roads, self.maxDistance) for k in range(nb_workers) ]
+    threads = [ Worker(k, limit, self.db_name, self.collection_name, self.db_osm_name, self.roads_name, self.maxDistance) for k in range(nb_workers) ]
 
     for t in threads:
       t.start()
@@ -110,8 +128,7 @@ class Affect_road_to_point:
       t.join()
     
     end = time.time()
-    print("Done")
-    print(count, "points modified /", nbPoints, "in", round(end - start, 3) ,"seconds")
+    print("Done in", round(end - start, 3) ,"seconds")
 
 
 
@@ -122,6 +139,12 @@ class Affect_road_to_point:
     (deprecated)   
     Affect the roads using only one main thread.
     """
+
+    client = MongoClient()
+
+    self.collection = client[self.db_name][self.collection_name]
+    self.osm_roads = client[self.db_osm_name][self.roads_name]
+
     start = time.time()
     requests = []
     count = 0
