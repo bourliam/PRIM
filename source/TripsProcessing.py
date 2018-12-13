@@ -13,7 +13,7 @@ def buildOdMatrix(trips,illeEtVilaineIRIS,maxSpeed=0,minDuration=5):
     beginDF=pd.DataFrame([*trips[trips.dur>=np.timedelta64(minDuration,'m')].begin.values])
     endDF=pd.DataFrame([*trips[trips.dur>=np.timedelta64(minDuration,'m')].end.values])
     tripEdgesDF=beginDF.join(endDF,lsuffix='_begin',rsuffix='_end')
-    tripEdgesDF=tripEdgesDF[(tripEdgesDF.speed_begin=<maxSpeed) & (tripEdgesDF.speed_end=<maxSpeed)]
+    tripEdgesDF=tripEdgesDF[(tripEdgesDF.speed_begin<=maxSpeed) & (tripEdgesDF.speed_end<=maxSpeed)]
     irisMatrix=pd.DataFrame(index=illeEtVilaineIRIS.INSEE_iris_code.values,columns=illeEtVilaineIRIS.INSEE_iris_code.values)
     irisMatrix.update(tripEdgesDF[(tripEdgesDF.INSEE_iris_code_begin.isin(illeEtVilaineIRIS.INSEE_iris_code))&(tripEdgesDF.INSEE_iris_code_end.isin(illeEtVilaineIRIS.INSEE_iris_code))].groupby(by=['INSEE_iris_code_begin','INSEE_iris_code_end']).size().unstack())
     return irisMatrix.fillna(0)
