@@ -88,15 +88,15 @@ def parallelClosestSegment(myPoint):
 def buildSegmentsMeta(segments, points):
     """ 
     find all incoming/outgoins segments for each segment
-    compute the legth of each segment
+    compute the length of each segment
     assign Max speed for each segment
     segments: pandas dataframe of segmenst (OSM way)
     """
     segments=segments.assign(maxSpeed=segments.tag.apply(lambda x : x['maxspeed'] if 'maxspeed'in x.keys() else '' ))
-    distance = segments['loc'].apply(lambda x : sum([reverseVincenty(a,b) for a, b in zip(x['coordinates'][:-1],x['coordinates'][1:])]))
+    length = segments['loc'].apply(lambda x : sum([reverseVincenty(a,b) for a, b in zip(x['coordinates'][:-1],x['coordinates'][1:])]))
     ins =segments.nodes.apply(lambda x : segments.index[segments.nodes.apply(lambda y : ((y[len(y)-1] in x) or (x[0] in y)) and x!=y )].values)
     outs=segments.nodes.apply(lambda x : segments.index[segments.nodes.apply(lambda y : ((x[len(x)-1] in y) or (y[0] in x)) and x!=y )].values)
     pointCounts=points.groupby(['matching_road']).size()
     carCounts = points.groupby(['matching_road','id']).size().groupby(['matching_road']).size()
-    return segments.assign(ins=ins, outs=outs, distance = distance,pointCounts=pointCounts,carCounts=carCounts)
+    return segments.assign(ins=ins, outs=outs, length = length,pointCounts=pointCounts,carCounts=carCounts)
 
