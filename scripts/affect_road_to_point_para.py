@@ -17,7 +17,7 @@ client = MongoClient()
 collection = client.geo4cast.subset_rennes
 osm_roads = client['osm-rennes'].roads
 
-affect = Affect_road_to_point(collection,osm_roads, 10)
+affect = Affect_road_to_point(geo4cast, collection, osm, osm_roads, 10)
 affect.affect_para(os.cpu_count())
 """
 
