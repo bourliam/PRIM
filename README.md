@@ -1,4 +1,36 @@
-# Projet PRIM : analyse de la congestion routière
+# Projet PRIM : Analyse de la congestion routière
+
+## Table of content
+
+* [Arborescence](#arborescence)
+* [Commandes utiles](#commandes-utiles)
+* [Zone étudiée: Rennes](#zone-étudiée--rennes)
+* [Importer les données OSM dans mongodb](#importer-les-données-osm-dans-mongodb)
+* [Pour visualiser dans QGis](Pour-visualiser-dans-qgis)
+
+## Arborescence
+
+PRIM
+- images
+- Notebooks
+  - access mongoDB.ipynb
+  - Export Ille et vilaine.ipynb
+  - Notebook PRIM.ipynb
+  - Removing irrelevant.ipynb
+  - parallelSegmentAssignation.ipynb
+- scripts
+  - affect_road_to_point.py
+  - affect_road_to_point_para.py
+  - cleaner.py
+  - insert_osm_data.py
+  - speed_matrix.py
+  - exportIlleEtVillaine.py
+- source
+  - DataProcessing.py
+  - OsmProcessing.py
+  - Plotting.py
+  - Trips.py
+  - TripsProcessing.py
 
 
 ## Commandes utiles:
