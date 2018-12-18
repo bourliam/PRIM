@@ -10,11 +10,20 @@ def getSegments(    osmWays,innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [
     """ 
     filter segments by tags in the requested bounding box
     
-    osmWays : mongo collection of OSM ways
-    innerBox : an inner rectangle where to fetch segments with tags @innerTags
-    innerTags : tags filter for segments in the inner box
-    outerBox : an inner rectangle where to fetch segments with tags @outerTags
-    outerTags : tags filter for segments in the outer box    
+    osmWays : mongo collection
+        OSM ways
+        
+    innerBox : array of  float length 5 
+        an inner rectangle where to fetch segments with tags @innerTags
+        
+    innerTags : list of str 
+        tags filter for segments in the inner box
+        
+    outerBox : array of float length 5
+        an inner rectangle where to fetch segments with tags @outerTags
+        
+    outerTags : list of str
+        tags filter for segments in the outer box    
     """
     
     cur = osmWays.find(    
@@ -90,7 +99,13 @@ def buildSegmentsMeta(segments, points):
     find all incoming/outgoins segments for each segment
     compute the length of each segment
     assign Max speed for each segment
-    segments: pandas dataframe of segmenst (OSM way)
+    compute Point count and car count
+    
+    segments: pandas dataframe
+        Osm ways
+        
+    points : pandas dataframe
+        logs
     """
     segments=segments.assign(maxSpeed=segments.tag.apply(lambda x : x['maxspeed'] if 'maxspeed'in x.keys() else '' ))
     length = segments['loc'].apply(lambda x : sum([reverseVincenty(a,b) for a, b in zip(x['coordinates'][:-1],x['coordinates'][1:])]))

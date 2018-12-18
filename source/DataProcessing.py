@@ -4,8 +4,12 @@ from vincenty import vincenty
 def correctIRIS(point,maxDistance):
     """
     Affect point to nearest IRIS
+    
     point : Geojason point
-    maxDistance : max distance between point and IRIS (meters)
+    
+    maxDistance : float
+        max distance between point and IRIS (meters)
+    
     returns closest IRIS or 'N/A'
     """
     res=db.iris_geo_coords.find(
@@ -24,16 +28,20 @@ def correctIRIS(point,maxDistance):
 
 def reverseVincenty(a,b):
     """ 
-    Vincenty distance
+    Vincenty distance adapted to the order of lon/lat in mongo db
+    
     a,b : array on length 2 (longitude, latitude)
-    returns the distance between the two points
+ 
+    returns the distance between the two points    
     """
     return vincenty(a[::-1],b[::-1])
 
 def builIrisDataFrame(irisCollection):
-    """ 
-    irisCollection : Mongo collection of IRIS
+    """
     returns all ille et vilaine IRISs
+
+    irisCollection : Mongo collection 
+        IRIS collection    
     """
     illeEtVilaineIRIS=irisCollection.find({'code_dept':'35'})
     illeEtVilaineIRIS=pd.DataFrame(list(illeEtVilaineIRIS))
@@ -42,8 +50,12 @@ def builIrisDataFrame(irisCollection):
 
 def loadRawData(coyoteData,limit=None):
     """
-    coyoteData : Mongo collection of logs
-    limit : the number of records to return
+    coyoteData : Mongo collection 
+        coyote collection of logs
+        
+    limit : int
+        the number of records to return
+    
     returns pandas dataframe of th requested collection
     """
     if limit :

@@ -10,7 +10,9 @@ from DataProcessing import reverseVincenty
 def timeSpentSince(startTime):
     """ 
     returns the number of seconds since startTime
-    startTime  : timestamp
+    
+    startTime  : int
+        timestamp
     """
     endTime = time.time()
     print('took {:.3f} ms'.format((endTime-startTime)*1000.0))
@@ -18,8 +20,12 @@ def timeSpentSince(startTime):
 def temporelTripsFilter(st,thresh= 15):
     """
     return the index of records where the difference between the two successive values is higher than thresh(default 15mins)
-    st : dataFrame of logs
-    thresh : the maximum numbre of minutes before truncating the trip (startin a new one)
+    
+    st : pandas dataFrame 
+        dataFrame of logs
+        
+    thresh : int
+        the maximum numbre of minutes before truncating the trip (startin a new one)
     """
     
     time=np.array(st['time'])
@@ -29,9 +35,15 @@ def temporelTripsFilter(st,thresh= 15):
 def stopsFilter(st, tempFilter, thresh= 10):
     """ 
     filter stop periods 
-    st : data frame of logs
-    tempFilter : the indexes return by (temporelTripsFilter)
-    thresh : the duration of stop allowed before starting a new trip (in minutes)
+    
+    st : pandas dataFrame
+        data frame of logs
+        
+    tempFilter : array 
+        the indexes return by (temporelTripsFilter)
+        
+    thresh : int
+        the duration of stop allowed before starting a new trip (in minutes)
     """
     speed=np.array(st['speed'])
     time=np.array(st['time'])
@@ -53,18 +65,30 @@ def stopsFilter(st, tempFilter, thresh= 10):
 def segmentsOn(locs, idx):
     """ 
     create trips out  of points (one user)
-    locs : dataframe of logs
-    idx : the starting positions of new trips
+    
+    locs : pandas dataFrame
+        dataframe of logs
+        
+    idx : array 
+        the starting positions of new trips
     """
     return [[locs[cl][i:j] for cl in locs.index] for i,j in zip(np.append(0,idx),np.append(idx,len(locs['loc'])))]
 
 def buildTrips(df,adhocCoef= 1.24, minPointsDuration= 15,stopsDuration= 10):
     """
     Create trips out logs for each user and compute multiple features for each trip
-    df :  dataframe of logs
-    adhocCoef : coeficient to normalize distance
-    minPointsDuration : the duration between two points after which we start a new trip
-    stopsDuration : the duration of stop after which we start a new trip
+    
+    df : pandas dataFrame
+        dataframe of logs
+        
+    adhocCoef : float 
+        coeficient to normalize distance
+        
+    minPointsDuration : int
+        the duration between two points after which we start a new trip
+        
+    stopsDuration : int
+        the duration of stop after which we start a new trip
     """ 
     startTime = time.time()
 
@@ -107,13 +131,27 @@ def buildTrips(df,adhocCoef= 1.24, minPointsDuration= 15,stopsDuration= 10):
 def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60,minDistance=0.2,maxSpeed=0,maxJumpSpeed=0.05,minOverallCoyoteSpeed=0 )                              :
     """ 
     apply multiple filters on trips
+    
     cnd : the filters to apply (not used #TODO)
-    irisFilter : the iris labels to take into consideration
-    maxOverallSpeed : the maximum speed overall trip km/second
-    minDuration : the minimum duration of a trip (in seconds)
-    minDistance : the minimum distance covered in the trip (in km)
-    maxSpeed : maximum speed at starting and ending points
-    maxJumpSpeed : maximum speed between the first two observed points (km/second)
+    
+    irisFilter : array 
+        the iris labels to take into consideration
+        
+    maxOverallSpeed : float
+        the maximum speed overall trip km/second
+        
+    minDuration : int
+        the minimum duration of a trip (in seconds)
+        
+    minDistance : float
+        the minimum distance covered in the trip (in km)
+        
+    maxSpeed : float
+        maximum speed at starting and ending points
+        
+    maxJumpSpeed : float
+        maximum speed between the first two observed points (km/second)
+        
     """
     # Max overall speed (km/second)
     tripOverallSpeed = trips.trip_distance_km/trips.dur.apply(lambda x : x/np.timedelta64(1, 's'))

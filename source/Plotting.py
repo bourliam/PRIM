@@ -20,7 +20,9 @@ dateWidget=widgets.DatePicker(
 def drawOneTrip(trip):
     """
     return a map with the trip plotted
-    trip : pandas Series an entry in the trips data frame
+    
+    trip : pandas Series
+        an entry in the trips data frame
     """
     folium_map = folium.Map(location=[48.10301,-1.65537],
                     zoom_start=13,
@@ -32,7 +34,9 @@ def drawMultipleTrips(trips):
     """
     (Interactive,deprecated)
     return a map with the trip plotted
-    trips : pandas Series multiple entries in the trips data frame
+    
+    trips : pandas Series
+        multiple entries in the trips data frame
     """
     global tripIdWidget
     global multipleTrips
@@ -45,7 +49,8 @@ def prepareMultipleTrips(trip=tripIdWidget,All=False):
     """
     (Interactive,deprecated)
     prepare data to be plotted
-    trip : trip ID
+    trip : str 
+        trip ID
     """
     global multipleTrips
     trips = multipleTrips
@@ -64,9 +69,15 @@ def prepareMultipleTrips(trip=tripIdWidget,All=False):
 def addTrip(folium_map,trip,color='red',edges_only=False):
     """    
     add a trip the folium map
-    trip : the trip to add to map
-    color: the color to use for the trip
-    edges_only : whether to use all points or edges only in the plot
+    
+    trip : pandas series
+        the trip to add to map
+        
+    color: str or hex representation 
+        the color to use for the trip
+        
+    edges_only : bool 
+        whether to use all points or edges only in the plot
     """
     locs=[[x['coordinates'][1],x['coordinates'][0]] for x in trip['loc']]
     if edges_only:
@@ -86,12 +97,24 @@ def printmap(carID=carIdWidget,byTrip=False,trip=tripIdWidget,byDate=False,date=
     """
     (Interactive)
     plot trips with the disired options
-    carID : the id of the device
-    byTrips : whether to plot all trips at once or one by one
-    trip : tripID used if plotting trips one by one
-    byDate : whether to plot all days at once or day by day
-    date : the date to plot 
-    trips : dataFrame of trips
+    
+    carID : str
+        the id of the device
+        
+    byTrips : bool
+        whether to plot all trips at once or one by one
+        
+    trip : int
+        tripID used if plotting trips one by one
+        
+    byDate : bool
+        whether to plot all days at once or day by day
+        
+    date : datetime
+        the date to plot 
+        
+    trips : pandas dataFrame
+        dataFrame of trips
     """
     carTrips=trips[trips.id==carID]    
     maxV= len(carTrips)-1
@@ -119,11 +142,28 @@ def printmap(carID=carIdWidget,byTrip=False,trip=tripIdWidget,byDate=False,date=
 def dataFrameAsImage(df,cmap=plt.cm.hot):
     """
     returns an image represntation of the dataFrame df using colormap cmap
+    
+    df : pandas dataFrame
     """
     plt.figure(figsize=(18,18))
     plt.imshow(df,cmap=cmap)
     
 def plotUserRegionsOfInterst(userEdges,nClusters, clusters, folium_map=None):
+    """
+    plot user regions of interst
+    
+    userEdges : pandas series
+        user edges
+    
+    nClusters : int
+        number of clusters
+        
+    clusters : array
+        label for each position in user edges
+        
+    folium_map : folium.map optional
+        the map to plot the regions on
+    """
     if not folium_map :
         folium_map=folium.Map(location=[48.10301,-1.65537],
                 zoom_start=13,
