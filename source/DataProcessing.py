@@ -28,11 +28,7 @@ def reverseVincenty(a,b):
     a,b : array on length 2 (longitude, latitude)
     returns the distance between the two points
     """
-    a=a.copy()
-    a.reverse()
-    b=b.copy()
-    b.reverse()
-    return vincenty(a,b)
+    return vincenty(a[::-1],b[::-1])
 
 def builIrisDataFrame(irisCollection):
     """ 
