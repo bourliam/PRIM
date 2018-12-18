@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import KDTree
-
+from sklearn.cluster import DBSCAN
 def buildOdMatrix(trips,illeEtVilaineIRIS,maxSpeed=0,minDuration=5):
     """ 
     create OD matrix from trips
@@ -39,3 +39,17 @@ def irisFlowRate(OdMatrix):
     OdMatrix : OD matrix of iris
     """
     return OdMatrix.sum(axis=1)+OdMatrix.sum(axis=0)-OdMatrix.values[tuple([np.arange(len(OdMatrix))])*2]
+
+
+def getGroupedTripEdges(tripsDF):
+    edgesDF = tripsDF.groupby('id').apply(lambda x :pd.Series({"edges": [coorX['loc']['coordinates'] for coorX in x.begin]+[coorX['loc']['coordinates'] for coorX in x.end]}))
+    edgesDF=edgesDF.assign(length=edgesDF.edges.apply(len))
+    return edgesDF
+
+def filterEdgesLength(edgesDF, minPoints=0):
+    return edgesDF[edgesDF>=minPoints]
+
+def findUserRegionsOfInterst(userEdges,metric,min_samples=5,leaf_size=2):
+    res = DBSCAN(min_samples=min_samples,metric=metric,leaf_size=leaf_size).fit(userEdges.edges)
+    nbClusts=len(set(res.labels_))
+    return nbClusts, res.labels_
