@@ -122,3 +122,14 @@ def dataFrameAsImage(df,cmap=plt.cm.hot):
     """
     plt.figure(figsize=(18,18))
     plt.imshow(df,cmap=cmap)
+    
+def plotUserRegionsOfInterst(userEdges,nClusters, clusters, folium_map=None):
+    if not folium_map :
+        folium_map=folium.Map(location=[48.10301,-1.65537],
+                zoom_start=13,
+                tiles="OpenStreetMap")
+    [folium.CircleMarker(location=userEdges.edges[i][::-1],
+                                  color=matplotlib.colors.rgb2hex(plt.cm.hot((clusters[i]+1)/nClusters))
+                                 ).add_to(folium_map) 
+     for i in range(len(userEdges.edges)) ]
+    return folium_map
