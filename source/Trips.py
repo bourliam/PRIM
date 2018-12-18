@@ -65,9 +65,9 @@ def buildTrips(df,adhocCoef= 1.24, minPointsDuration= 15,stopsDuration= 10):
     adhocCoef : coeficient to normalize distance
     minPointsDuration : the duration between two points after which we start a new trip
     stopsDuration : the duration of stop after which we start a new trip
-    """
-    
+    """ 
     startTime = time.time()
+
     print('grouping data points by car : ....\n')
     carsDF=df.groupby(by='id').agg(lambda x:[*x.values])
     print('grouping data points by car : Done\n')
@@ -104,7 +104,7 @@ def buildTrips(df,adhocCoef= 1.24, minPointsDuration= 15,stopsDuration= 10):
 
 #Filtering trips
 
-def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60,minDistance=0.2,maxSpeed=0,maxJumpSpeed=0.05 )                              :
+def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60,minDistance=0.2,maxSpeed=0,maxJumpSpeed=0.05,minOverallCoyoteSpeed=0 )                              :
     """ 
     apply multiple filters on trips
     cnd : the filters to apply (not used #TODO)
@@ -116,8 +116,13 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
     maxJumpSpeed : maximum speed between the first two observed points (km/second)
     """
     # Max overall speed (km/second)
-    globalSpeedFilter = ((trips.trip_distance_km/trips.dur.apply(lambda x : x/np.timedelta64(1, 's')))<maxOverallSpeed)
+    tripOverallSpeed = trips.trip_distance_km/trips.dur.apply(lambda x : x/np.timedelta64(1, 's'))
+    globalSpeedFilter = ((tripOverallSpeed < maxOverallSpeed))
     trips=trips[globalSpeedFilter]
+    # Min Overall Coyote (observed) speed (km/second)
+    coyoteSpeedFilter = trips.speed.apply(np.mean)>minOverallCoyoteSpeed
+    trips=trips[coyoteSpeedFilter]
+
     # minimumTripDistance (km)
     minimumTripDistance = (trips.trip_distance_km>=minDistance)
     trips=trips[minimumTripDistance]
@@ -133,7 +138,7 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
     # geographique jump on start
     geoJump=(trips.pairs_distances_km.apply(lambda x : x[0])/trips.time_difference_seconds.apply(lambda x : x[0]))<=maxJumpSpeed
     trips=trips[geoJump]
-    # Start and end points in ile et vilaine
-    startEndIris = (trips.INSEE_iris_code.apply(lambda x : any(iris in x for iris in irisFilter)))
-    trips=trips[startEndIris]
+    # Trips passing by  ile et vilaine IRIS
+    inIris = (trips.INSEE_iris_code.apply(lambda x : any(iris in x for iris in irisFilter)))
+    trips=trips[inIris]
     return trips
