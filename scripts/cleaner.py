@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 import numpy as np
 
-def remove_aberrant(data:int, timeframe = 15, nb_points = 5):
+def remove_aberrant(data, timeframe = 15, nb_points = 5):
   """[A function to remove aberrant points in a collection.]
   
   A point is abberant when we have nb_points in timeframe minutes with speed=0 and the same user id.
@@ -33,7 +33,7 @@ def remove_aberrant(data:int, timeframe = 15, nb_points = 5):
       "count": {"$sum": 1} 
     }},
     { "$match": { "count": { "$gt": nb_points } } }
-  ]))
+  ], allowDiskUse=True))
 
 
   ids = []
