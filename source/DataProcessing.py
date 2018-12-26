@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from vincenty import vincenty
 
 def correctIRIS(point,maxDistance):
@@ -63,6 +64,6 @@ def loadRawData(coyoteData,limit=None):
     else : df =  pd.DataFrame(list(coyoteData.find({})))
     df.sort_values(by='time',inplace=True)
     if(type(df.time.values[0]) == np.int64):
-        transformedTime = df.time.apply(lambda x : pd.to_datetime(x,unit='s')+np.timedelta64(1,'h'))
+        transformedTime =  pd.to_datetime(df.time,unit='s')+np.timedelta64(1,'h')
         df=df.assign(time=transformedTime)
     return df
