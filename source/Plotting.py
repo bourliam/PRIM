@@ -173,3 +173,23 @@ def plotUserRegionsOfInterst(userEdges,nClusters, clusters, folium_map=None):
                                  ).add_to(folium_map) 
      for i in range(len(userEdges.edges)) ]
     return folium_map
+
+def plotRoads(roads,colors=None):
+    """
+    plot roads with colors
+    
+    segments: pandas Series
+        Roads cooredinates
+    
+    Colors: Array or None
+        color for each road
+    """
+    folium_map = folium.Map(location=[48.14301,-1.69537],
+                        zoom_start=13,
+                        tiles="OpenStreetMap")
+    if type(colors)==type(None) :
+        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']]).add_to(folium_map) for x in roads]
+    else : 
+        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']],color=color).add_to(folium_map) for x,color in zip(roads,colors)]
+
+    return folium_map
