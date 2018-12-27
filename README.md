@@ -69,6 +69,13 @@ puis ctrl + C pour l'arreter
 ```
 tuto screens : <https://www.linuxtricks.fr/wiki/screen-plusieurs-terminaux-virtuels-dans-un-seul>
 
+
+Copier une collection:
+
+```
+db.getCollection('collection').aggregate([ { $out: "mycopy" }])
+```
+
 ## Zone étudiée : Rennes
 
 nord est lat=48.1440&lon=-1.6140
