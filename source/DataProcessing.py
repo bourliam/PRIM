@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from vincenty import vincenty
 
 def correctIRIS(point,maxDistance):
     """
@@ -27,15 +26,6 @@ def correctIRIS(point,maxDistance):
     ).limit(1)
     return next(res,{'INSEE_iris_code':'N/A'})['INSEE_iris_code']
 
-def reverseVincenty(a,b):
-    """ 
-    Vincenty distance adapted to the order of lon/lat in mongo db
-    
-    a,b : array on length 2 (longitude, latitude)
- 
-    returns the distance between the two points    
-    """
-    return vincenty(a[::-1],b[::-1])
 
 def builIrisDataFrame(irisCollection):
     """
