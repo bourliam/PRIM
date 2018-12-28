@@ -1,10 +1,11 @@
 import ipywidgets as widgets
 import folium
+import CustomUtils
 from folium.plugins import FastMarkerCluster
 from folium.plugins import MarkerCluster
 import matplotlib.pyplot as plt
 import matplotlib
-
+import numpy as np
 maxV=10
 global multipleTrips
 global carIdWidget
@@ -15,7 +16,6 @@ dateWidget=widgets.DatePicker(
     description='Pick a Date',
     disabled=False,
 )
-
 
 def drawOneTrip(trip):
     """
@@ -29,6 +29,14 @@ def drawOneTrip(trip):
                     tiles="OpenStreetMap")
     addTrip(folium_map,trip)
     return folium_map
+
+
+def getFoliumMap():
+    folium_map = folium.Map(location=[48.10301,-1.65537],
+                    zoom_start=13,
+                    tiles="OpenStreetMap")    
+    return folium_map
+
 
 def drawMultipleTrips(trips):
     """
@@ -68,12 +76,12 @@ def prepareMultipleTrips(trip=tripIdWidget,All=False):
 
 def addTrip(folium_map,trip,color='red',edges_only=False):
     """    
-    add a trip the folium map
+    add a trip to the folium map
     
     trip : pandas series
         the trip to add to map
         
-    color: str or hex representation 
+    color : str or hex representation 
         the color to use for the trip
         
     edges_only : bool 
@@ -82,11 +90,19 @@ def addTrip(folium_map,trip,color='red',edges_only=False):
     locs=[[x['coordinates'][1],x['coordinates'][0]] for x in trip['loc']]
     if edges_only:
         locs=[locs[0],locs[len(locs)-1]]
+    
     MarkerCluster(locations=locs,
                   icons = [folium.Icon(color='green', icon='play-circle'),*[folium.Icon(color=color, icon='info-sign') if not edges_only else '' for _ in range(len(locs)-2) ],folium.Icon(color='black', icon='stop') if len(locs)>1 else []],
                   popups=['ID : '+trip.id+'<br>Speed : '+str(s)+'<br>Time : '+ str(t) +'<br> cooRdinates : '+'lat : '+str(l['coordinates'][1])+' lon : '+str(l['coordinates'][0])+'<br>Heading : '+str(h) for s,t,l,h in zip(trip['speed'],trip['time'],trip['loc'],trip['heading'])]).add_to(folium_map)
     folium.PolyLine(locations=locs,color=color).add_to(folium_map)
 
+    
+def addMultipleTrips(folium_map, carTrips,edges_only=False,colors=None):
+    if type(colors)==type(None) :
+        colors=plt.cm.brg([ x/len(carTrips) for x in range(len(carTrips))])
+    for s,c  in zip(carTrips.iterrows(),colors):
+        addTrip(folium_map,s[1],matplotlib.colors.rgb2hex(c),edges_only)
+        
 def addCarTrips(folium_map, trips, carsID):
     carTrips=trips[trips.id==carsID]
     colors=plt.cm.brg([ x/len(carTrips) for x in range(len(carTrips))])
@@ -148,7 +164,7 @@ def dataFrameAsImage(df,cmap=plt.cm.hot):
     plt.figure(figsize=(18,18))
     plt.imshow(df,cmap=cmap)
     
-def plotUserRegionsOfInterst(userEdges,nClusters, clusters, folium_map=None):
+def plotUserRegionsOfInterst(userEdges,folium_map=None,show_outliers=True):
     """
     plot user regions of interst
     
@@ -165,20 +181,34 @@ def plotUserRegionsOfInterst(userEdges,nClusters, clusters, folium_map=None):
         the map to plot the regions on
     """
     if not folium_map :
-        folium_map=folium.Map(location=[48.10301,-1.65537],
-                zoom_start=13,
-                tiles="OpenStreetMap")
-    [folium.CircleMarker(location=userEdges.edges[i][::-1],
-                                  color=matplotlib.colors.rgb2hex(plt.cm.hot((clusters[i]+1)/nClusters))
-                                 ).add_to(folium_map) 
-     for i in range(len(userEdges.edges)) ]
+        folium_map=getFoliumMap()
+    
+    validIds=np.where(userEdges.clusters_begin>=-show_outliers)[0]
+    colors=CustomUtils.getClustersColors(userEdges.clusters_begin[validIds])    
+    beginLayer = getLayerWithPositions(userEdges.edges_begin[validIds],colors,name='begin',fmap=folium_map)
+    beginLayer.add_to(folium_map)
+    
+    validIds=np.where(userEdges.clusters_end>=-show_outliers)[0]
+    colors=CustomUtils.getClustersColors(userEdges.clusters_end[validIds])
+    endLayer = getLayerWithPositions(userEdges.edges_end[validIds],colors, name='end', fmap=folium_map)
+    endLayer.add_to(folium_map)
+    
+    folium.LayerControl().add_to(folium_map)
     return folium_map
+
+def getLayerWithPositions(positions,colors,fmap,name='map'):
+    layer =    folium.plugins.FeatureGroupSubGroup(fmap,name=name)
+    [folium.CircleMarker(location=positions[i][::-1],
+                                  color=matplotlib.colors.rgb2hex(colors[i])
+                                 ).add_to(layer) 
+    for i in range(len(positions))]
+    return layer
 
 def plotRoads(roads,colors=None):
     """
     plot roads with colors
     
-    segments: pandas Series
+    roads: pandas Series
         Roads cooredinates
     
     Colors: Array or None
@@ -191,5 +221,20 @@ def plotRoads(roads,colors=None):
         [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']]).add_to(folium_map) for x in roads]
     else : 
         [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']],color=color).add_to(folium_map) for x,color in zip(roads,colors)]
+
+    return folium_map
+
+def plotUserTripsClusters(folium_map,trips,userEdges,edges_only=False):
+    if folium_map == None :
+        folium_map=Plotting.getFoliumMap()
+    colors = CustomUtils.getClustersColors(userEdges.trip_clusters)
+    
+    for cluster in set(userEdges.trip_clusters):
+        layer = folium.plugins.FeatureGroupSubGroup(folium_map,name='cluster_'+str(cluster))
+        tripColors = colors[np.where(userEdges.trip_clusters==cluster)[0]]
+        tripIds = userEdges.edges_trip_id[np.where(userEdges.trip_clusters==cluster)[0]]
+        [addTrip(layer,trips.loc[idt],color,edges_only) for idt,color in zip(tripIds,tripColors)]
+        layer.add_to(folium_map)
+    folium.LayerControl().add_to(folium_map)
 
     return folium_map
