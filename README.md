@@ -69,6 +69,13 @@ puis ctrl + C pour l'arreter
 ```
 tuto screens : <https://www.linuxtricks.fr/wiki/screen-plusieurs-terminaux-virtuels-dans-un-seul>
 
+
+Copier une collection:
+
+```
+db.getCollection('collection').aggregate([ { $out: "mycopy" }])
+```
+
 ## Zone étudiée : Rennes
 
 nord est lat=48.1440&lon=-1.6140
@@ -161,9 +168,16 @@ C'est un fork adapté à QGIS 3 de ce plugin : <https://github.com/adrianaksan/q
 
 
 
+## Notes
 
-
-
-
+Affect matching roads
+old version
 10270362 points modified / 10270362 in 10314.604 seconds  => 2h52
+
+now: ~15 min
+
+
+
+cleaner on coyote 2 with timeframe = 15, nb_points = 5
+1975776 points deleted
 
