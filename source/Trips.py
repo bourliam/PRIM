@@ -5,7 +5,7 @@ import datetime
 import numpy as np
 import pandas as pd
 # Printing
-from DataProcessing import reverseVincenty
+from CustomUtils import reverseVincenty
 
 def timeSpentSince(startTime):
     """ 
@@ -180,3 +180,12 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
     inIris = (trips.INSEE_iris_code.apply(lambda x : any(iris in x for iris in irisFilter)))
     trips=trips[inIris]
     return trips
+
+def tripDistance(x,y):
+    """
+    returns the distance between two trips as mean distance between thier starting points and ending points
+    x,y : array of float (length 4)
+        starting and ending point long lat  
+    """
+    #print(x,y)
+    return max(reverseVincenty(x[:2],y[:2]),reverseVincenty(x[-2:],y[-2:]))
