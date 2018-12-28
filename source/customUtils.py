@@ -1,5 +1,10 @@
 import json
 import pandas as pd
+import numpy as np
+from vincenty import vincenty
+import matplotlib.pyplot as plt
+import datetime
+from matplotlib.colors import rgb2hex
 def createIrisPopulationCollection(path,db, name=None):
     """
     Create collection from excel file
@@ -19,3 +24,50 @@ def createIrisPopulationCollection(path,db, name=None):
     irisPop = db[name]
     records= pd.read_excel(path, encoding="utf8", skiprows=5, header=0).iloc[:,:13].apply(lambda x : json.loads(x.to_json(force_ascii=False)),axis=1).tolist()
     irisPop.insert_many(records)
+    
+def timeToTimeDelta(timeSerie):
+    """
+    extract time from timestamp and return it as a delta time
+    
+    timeSeries : pandas Series
+        series of timestamps
+    """
+    return pd.to_timedelta(pd.to_timedelta(timeSerie).dt.seconds,unit='s')
+def timeToSeconds(ts):
+    """
+    extract seconds out of time
+    
+    ts : datetime.time
+        time
+    """
+    return ts.hour*3600+ts.minute*60+ts.second
+def secondsToTime(secs):
+    """
+    create time out of seconds
+    
+    secs : int
+        number of seconds
+    """
+    return datetime.time(int(secs/3600),int(secs%3600/60),int(secs%60))
+
+def getClustersColors(clusters,cmap=plt.cm.hot):
+    """
+    return colors for clusters
+    clusters : array of int
+        clusters labels
+    cmap : matplotlib cmap
+        color map used to generate colors
+    """
+    clusters+=1
+    return np.array([rgb2hex(color) for color in cmap(clusters/(max(clusters)+1))])
+
+def reverseVincenty(a,b):
+    """ 
+    Vincenty distance adapted to the order of lon/lat in mongo db
+    
+    a,b : array on length 2 (longitude, latitude)
+ 
+    returns the distance between the two points     
+    """
+    return vincenty(a[::-1],b[::-1]) 
+
