@@ -67,17 +67,21 @@ class SpeedMatrix:
     return main_roads
 
 
-  def get_speed_matrix(self, timeframe, road_ids):
+  def get_speed_matrix(self, timeframe, road_ids, hour_start = 17, hour_end = 20):
     """
     The function to get the speed matrix   
     @params:    
     timeframe: the time interval between two speeds.
+    road_ids: ids of the road to keep
+    hour_start: hour for the beginning of the window
+    hour_end: hour for the end of the window
     """
 
     self.avg_speed = pd.DataFrame(
       list(self.collection.aggregate(
         [
-          {"$match": {"matching_road": {"$in": road_ids }}},
+          {"$addFields": {"hour": {"$hour": {"$toDate": {"$multiply": ["$time", 1000]}}}}},
+          {"$match": {"matching_road" :{"$in": road_ids }, "hour":{ "$gte" : hour_start , "$lt" : hour_end }}},
           {
           "$group" : {
             "_id" : {
@@ -85,10 +89,11 @@ class SpeedMatrix:
               "heading": "$heading_road",
               "time": {
                 "$toDate": {
-                  "$subtract": [
-                    { "$toLong": "$time"},
-                    { "$mod": [ { "$toLong": "$time"}, 1000 * 60 * timeframe] }
-                  ]
+                    "$multiply": [
+                        {"$subtract": [
+                            { "$toLong": "$time"},
+                            { "$mod": [ { "$toLong": "$time"}, 1 * 60 * 15] }
+                            ]}, 1000]
                 }
               }
             },
