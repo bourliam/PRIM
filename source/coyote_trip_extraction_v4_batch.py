@@ -1,11 +1,28 @@
-import time
+import sys
+# MONGODB 
+from pymongo import MongoClient
+# Ploting
+import matplotlib
+import matplotlib.pyplot as plt
+from vincenty import vincenty
+from bson import json_util,ObjectId
 
+def reverseVincenty(a,b):
+    """ 
+    Vincenty distance adapted to the order of lon/lat in mongo db
+    
+    a,b : array on length 2 (longitude, latitude)
+ 
+    returns the distance between the two points     
+    """
+    return vincenty(a[::-1],b[::-1]) 
 # Data and processing
 import datetime
 import numpy as np
 import pandas as pd
+import time
 # Printing
-from CustomUtils import reverseVincenty
+import pprint
 
 def timeSpentSince(startTime):
     """ 
@@ -15,7 +32,7 @@ def timeSpentSince(startTime):
         timestamp
     """
     endTime = time.time()
-    print('took {:.1f} s'.format((endTime-startTime)))
+    print('took {:.1f} ms'.format((endTime-startTime)*1000.0))
 
 def temporelTripsFilter(st,thresh= 15):
     """
@@ -125,9 +142,10 @@ def buildTrips(df,adhocCoef= 1.24, minPointsDuration= 15,stopsDuration= 10):
     timeSpentSince(startTime)
     startTime = time.time()
     return trips
+
 #Filtering trips
 
-def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60,minDistance=0.2,maxSpeed=0,maxJumpSpeed=0.05,minOverallCoyoteSpeed=0, minVoDistance = 0.2):
+def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60,minDistance=0.2,maxSpeed=0,maxJumpSpeed=0.05,minOverallCoyoteSpeed=0 ):
     """ 
     apply multiple filters on trips
     
@@ -144,9 +162,6 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
         
     minDistance : float
         the minimum distance covered in the trip (in km)
-        
-    minVoDistance : float
-        the minimum distance 'vol d'oiseau' (in km)
         
     maxSpeed : float
         maximum speed at starting and ending points
@@ -171,11 +186,6 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
     trips=trips[minimumTripDistance]
     if trips.empty: return trips
 
-    # minimumTripVoDistance (km)
-    minimumTripVoDistance = (trips.trip_distance_km_vo>=minVoDistance)
-    trips=trips[minimumTripVoDistance]
-    if trips.empty: return trips
-    
     # minimum trip duration (seconds)
     minTripDuration=(trips.dur>=np.timedelta64(minDuration, 's'))
     trips=trips[minTripDuration]
@@ -196,11 +206,10 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
     trips=trips[geoJump]
     if trips.empty: return trips
 
-#     # Trips passing by  ile et vilaine IRIS
-#     inIris = (trips.INSEE_iris_code.apply(lambda x : any(iris in x for iris in irisFilter)))
-#     trips=trips[inIris]
+    # Trips passing by  ile et vilaine IRIS
+    inIris = (trips.INSEE_iris_code.apply(lambda x : any(iris in x for iris in irisFilter)))
+    trips=trips[inIris]
     return trips
-
 
 
 def tripDistance(x,y):
@@ -212,59 +221,62 @@ def tripDistance(x,y):
     #print(x,y)
     return max(reverseVincenty(x[:2],y[:2]),reverseVincenty(x[-2:],y[-2:]))
 
+def selectColumns(trips):
+    trips=trips.copy()
+    if trips.empty : return trips
+    trips.begin=trips.begin.apply(lambda x : x['_id'])
+    trips.end=trips.end.apply(lambda x : x['_id'])
+    trips=trips[['id','INSEE_iris_code', '_id', 'begin', 'end', 'dur','trip_distance_km', 'trip_distance_km_vo']]
+    trips=trips.rename({'_id':'points'},axis=1)
+    return trips
 
+def insertManyTrips(trips,collection,mongoCols=['begin','end','points']):
+    records = trips.apply(lambda x : json_util.loads(x.to_json(date_unit="s",force_ascii=False, default_handler = json_util.dumps)),axis=1).tolist()
+    serializedTrips = pd.DataFrame(records)
+    for col in mongoCols :
+        serializedTrips[col]=trips[col].values
+    records = serializedTrips.to_dict(orient='records')
+    collection.insert_many(records,ordered=False)
 
+# mongo client
+client = MongoClient()
+# db name  'congestion'
+db = client.congestion
+# iris collection "db.iris_geo_coords"
+irisCollection = db.iris_geo_coords
+# coyote data "db.coyote"
+coyoteData = db.coyote
+# trips Collection
+tripsData = db.trips
+# Main
+illeEtVilaineIRIS=irisCollection.find({'code_dept':'35'})
+illeEtVilaineIRIS=pd.DataFrame(list(illeEtVilaineIRIS))
+illeEtVilaineIRIS['loc'].apply(lambda x : [y.reverse() if x['type']== 'Polygon' else  [z.reverse() for z in y] for f in  x['coordinates'] for y in f ])
+illeEtVilaineIRIS.head()
 
+# loading Data
+nbDevices=500
+print('loading Data (batch '+str(nbDevices)+')')
+distIds=coyoteData.distinct("id")
 
-def buildTripsTuple(df,adhocCoef= 1.24, minPointsDuration= 15,stopsDuration= 10):
-    """
-    Create trips out logs for each user and compute multiple features for each trip
-    
-    df : pandas dataFrame
-        dataframe of logs
-        
-    adhocCoef : float 
-        coeficient to normalize distance
-        
-    minPointsDuration : int
-        the duration between two points after which we start a new trip
-        
-    stopsDuration : int
-        the duration of stop after which we start a new trip
-    """ 
-    colNames = df.columns
-    startTime = time.time()
+for group in zip(range(0,len(distIds),nbDevices),list(range(0,len(distIds),nbDevices))[1:]+[len(distIds)]):
+    ids=coyoteData.find({"id":{'$in':distIds[slice(*group,1)]}})
+    df=pd.DataFrame(list(ids))
+    #df = pd.DataFrame(list(coyoteData.find({})))
+    # Sort data by time
+    df.sort_values(by='time',inplace=True)
+    if(type(df.time.values[0]) == np.int64):
+        transformedTime =  pd.to_datetime(df.time,unit='s')+np.timedelta64(1,'h')
+        df=df.assign(time=transformedTime)
 
-    print('grouping data points by car : ....\n')
-    carsDF=df.groupby(by='id').agg(lambda x:tuple(x.values))
-    print('grouping data points by car : Done\n')
-    timeSpentSince(startTime)
-    startTime = time.time()
-    print('extracting trips : ....\n')
-    trips =carsDF.apply(lambda x : list(zip(*segmentsOn(x,stopsFilter(x,temporelTripsFilter(x,thresh=minPointsDuration),thresh=stopsDuration)))),axis=1)
-    print('extracting trips : Done\n')
-    timeSpentSince(startTime)
-    startTime = time.time()
-    print('splitting trips by car : ....\n')
-    trips=pd.DataFrame([[trips.index[idx],*row] for idx in range(len(trips)) for row in zip(*trips.iloc[idx])],columns=['id',*carsDF.columns])
-    print('splitting trips by car : Done \n')
-    timeSpentSince(startTime)
-    #return trips
-    startTime = time.time()
-    print('adding columns (day,begin point,end point, duration : ....\n')
-    trips=trips.assign(day=trips.time.apply(lambda x:pd.to_datetime(x[0]).date()))
-    trips=trips.assign(begin=trips.apply(lambda x : dict([(c,x[c][0]) for c in ['_id','loc','time','heading','speed','INSEE_iris_code'] if c in colNames]),axis=1))
-    trips=trips.assign(end=trips.apply(lambda x : dict([(c,x[c][len(x[c])-1]) for c in ['_id','loc','time','heading','speed','INSEE_iris_code'] if c in colNames]),axis=1))
-    trips=trips.assign(dur=trips.time.apply(lambda x :x[len(x)-1]-x[0] ))
-    trips=trips.assign(time_difference_seconds = trips.time.apply(lambda loc : np.array([(y-x)/np.timedelta64(1, 's') for x,y in zip(loc[:-1],loc[1:])])))
-    print('adding columns (day,begin point,end point, duration : Done \n')
-    timeSpentSince(startTime)
-    startTime = time.time()
-    print('Calculating distances: ... \n')
-    trips=trips.assign(pairs_distances_km=trips['loc'].apply(lambda loc : np.array([reverseVincenty(x['coordinates'],y['coordinates'])*adhocCoef for x,y in zip(loc[:-1],loc[1:])])))
-    trips=trips.assign(trip_distance_km=trips.pairs_distances_km.apply(sum))
-    trips=trips.assign(trip_distance_km_vo = trips['loc'].apply(lambda x: reverseVincenty(x[0]['coordinates'],x[len(x)-1]['coordinates'])))
-    print('Calculating distances: Done \n')
-    timeSpentSince(startTime)
-    startTime = time.time()
-    return trips.apply(lambda x:[[*y] for y in x if type(x[0])==tuple ]+[y for y in x if type(x[0])!=tuple ] )
+    print('building trips')
+    # Creating trips-
+    trips= buildTrips(df)
+    print(trips.head())
+
+    print("filtering trips")
+    filterdTrips=filterTrips(trips,irisFilter=illeEtVilaineIRIS.INSEE_iris_code.values)
+    print(filterdTrips.head())
+    selectedColumns=selectColumns(filterdTrips)
+    print(selectedColumns.head())
+    insertManyTrips(selectedColumns,tripsData)
