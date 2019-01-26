@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import time 
 from CustomUtils import reverseVincenty
-def getSegments(    osmWays,innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [-1.7626, 48.0632], [-1.7626,48.1656], [-1.5460, 48.1656]]],
+def getSegments(    osmWays,
+                    innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [-1.7626, 48.0632], [-1.7626,48.1656], [-1.5460, 48.1656]]],
                     innerTags =["motorway", "trunk", "primary", "secondary", "tertiary", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link"],
                     outerBox=[[[-1.4460, 48.2056], [-1.4460, 48.0032], [-1.8626, 48.0032], [-1.8626,48.2056], [-1.4460, 48.2056]]],
                     outerTags= ["motorway", "trunk"]

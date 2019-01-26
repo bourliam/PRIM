@@ -9,7 +9,7 @@ class SpeedMatrix:
     db_name: the name of the database to use.    
     collection_name: the name of the collection to use.  
     """
-
+    
     def __init__(self, db_name, collection_name, db_osm_name, roads_name):
         '''Class to compute the speed matrix
 
@@ -81,6 +81,7 @@ class SpeedMatrix:
                         "hour": {"$hour": {"$toDate": {"$multiply": ["$time", 1000]}}}}},
                     {"$match": {"matching_road": {"$in": road_ids},
                                 "hour": {"$gte": hour_start, "$lt": hour_end}}},
+
                     {
                         "$group": {
                             "_id": {
@@ -88,12 +89,14 @@ class SpeedMatrix:
                                 "heading": "$heading_road",
                                 "time": {
                                     "$toDate": {
+
                                         "$multiply": [
                                             {"$subtract": [
                                                 {"$toLong": "$time"},
                                                 {"$mod": [
                                                     {"$toLong": "$time"}, 1 * 60 * 15]}
                                             ]}, 1000]
+
                                     }
                                 }
                             },
