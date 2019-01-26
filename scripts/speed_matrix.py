@@ -5,19 +5,27 @@ from pymongo import MongoClient
 class SpeedMatrix:
     """
     The class to compute the speed matrix.   
-    @params   
-    db_name: the name of the database to use.    
-    collection_name: the name of the collection to use.  
+
+     Arguments:
+        db_name {str} -- The name of the database
+        collection_name {str} -- The name of the collection
+
+    Keyword Arguments:
+        db_osm_name {str} -- The name of the osm database  (default: {"osm"})
+        roads_name {str} -- The name of the roads collection (default: {"roads"}) 
     """
-    
-    def __init__(self, db_name, collection_name, db_osm_name, roads_name):
-        '''Class to compute the speed matrix
+
+    def __init__(self, db_name, collection_name, db_osm_name="osm", roads_name="roads"):
+        """Class to compute the speed matrix
 
         Arguments:
-          db_name {string} -- The name of the database
-          collection_name {string} -- The name of the collection
-          road_ids {array} -- The array of the roads' ids to keep
-        '''
+            db_name {str} -- The name of the database
+            collection_name {str} -- The name of the collection
+
+        Keyword Arguments:
+            db_osm_name {str} -- The name of the osm database  (default: {"osm"})
+            roads_name {str} -- The name of the roads collection (default: {"roads"})
+        """
 
         client = MongoClient()
         self.collection = client[db_name][collection_name]
@@ -25,6 +33,13 @@ class SpeedMatrix:
         self.avg_speed = pd.DataFrame()
 
     def get_main_roads(self):
+        """Deprecated : Use the function in source/OsmProcessing.
+        Function to get the main roads.
+
+        Returns:
+            list -- The list of road ids.
+        """
+
         curs = self.osm_roads.find(
             {
                 "loc": {
@@ -65,13 +80,18 @@ class SpeedMatrix:
         return main_roads
 
     def get_speed_matrix(self, timeframe, road_ids, hour_start=17, hour_end=20):
-        """
-        The function to get the speed matrix   
-        @params:    
-        timeframe: the time interval between two speeds.
-        road_ids: ids of the road to keep
-        hour_start: hour for the beginning of the window
-        hour_end: hour for the end of the window
+        """The function to get the speed matrix
+
+        Arguments:
+            timeframe {int} -- The length of the timeframe, ie the time between two columns.
+            road_ids {list} -- List of the roads to build the matrix.
+
+        Keyword Arguments:
+            hour_start {int} -- The start hour each day (default: {17})
+            hour_end {int} -- The end hour each day (default: {20})
+
+        Returns:
+            pandas.DataFrame -- The speed matrix. A row is for a road. A column is for a time t.
         """
 
         self.avg_speed = pd.DataFrame(
