@@ -1,5 +1,11 @@
 import pandas as pd
 import numpy as np
+from pymongo import MongoClient
+try:
+    client
+except NameError:
+    client = MongoClient()
+    osmData = client.osm.ways
 
 def correctIRIS(point,maxDistance):
     """
@@ -39,6 +45,30 @@ def builIrisDataFrame(irisCollection):
     illeEtVilaineIRIS['loc'].apply(lambda x : [y.reverse() if x['type']== 'Polygon' else  [z.reverse() for z in y] for f in  x['coordinates'] for y in f ])
     return illeEtVilaineIRIS
 
+def loadRawData(coyoteData,limit=None,projection={}):
+    """
+    coyoteData : Mongo collection 
+        coyote collection of logs
+        
+    limit : int
+        the number of records to return
+        
+    projection : dict
+        the projection of features
+        
+    returns pandas dataframe of th requested collection
+    """
+    if limit :
+        df = pd.DataFrame(list(coyoteData.find({},projection).limit(limit)))
+    else : df =  pd.DataFrame(list(coyoteData.find({},projection)))
+        
+    df.sort_values(by='time',inplace=True)
+    if(type(df.time.values[0]) == np.int64):
+        transformedTime =  pd.to_datetime(df.time,unit='s')+np.timedelta64(1,'h')
+        df=df.assign(time=transformedTime)
+    return df
+
+
 def loadRawData(coyoteData,limit=None):
     """
     coyoteData : Mongo collection 
@@ -46,14 +76,37 @@ def loadRawData(coyoteData,limit=None):
         
     limit : int
         the number of records to return
-    
+        
     returns pandas dataframe of th requested collection
     """
     if limit :
         df = pd.DataFrame(list(coyoteData.find({}).limit(limit)))
     else : df =  pd.DataFrame(list(coyoteData.find({})))
+        
     df.sort_values(by='time',inplace=True)
     if(type(df.time.values[0]) == np.int64):
         transformedTime =  pd.to_datetime(df.time,unit='s')+np.timedelta64(1,'h')
         df=df.assign(time=transformedTime)
     return df
+
+def isResidential(location):
+    
+    cur=osmData.find({'tag.k':'landuse',
+                      'tag.v':{'$in':["commercial",
+                                      "construction",
+                                      "industrial",	
+                                      "residential",	
+                                      "retail"
+                                     ]
+                              }, 
+                        "loc":
+                            {
+                                 "$near": {
+                                    "$geometry": {'type':'point',
+                                                  'coordinates':location},
+                                 }
+                            }
+                     }
+                    ,{'tag.v':1,'_id':0}
+                    ).limit(1)
+    return "residential" in [landuse['v'] for landuse in list(cur)[0]['tag']]

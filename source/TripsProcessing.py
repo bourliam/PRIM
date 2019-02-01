@@ -4,6 +4,8 @@ from sklearn.neighbors import KDTree
 from sklearn.cluster import DBSCAN
 import CustomUtils
 from Trips import tripDistance
+import itertools
+import scipy
 def buildOdMatrix(trips,illeEtVilaineIRIS,maxSpeed=0,minDuration=5):
     """ 
     create OD matrix from trips
@@ -62,7 +64,7 @@ def getGroupedTripEdges(tripsDF):
     tripsDF : pandas dataFrame 
         dataFrame of trips
     """
-    edgesDF = tripsDF.groupby('id').apply(lambda x :pd.Series({"edges_begin": np.array([coorX['loc']['coordinates'] for coorX in x.begin]),"edges_end":np.array([coorX['loc']['coordinates'] for coorX in x.end]),"edges_trip_id":x.index.get_values()}))
+    edgesDF = tripsDF.groupby('id').apply(lambda x :pd.Series({"edges_begin": np.array([coorX['loc']['coordinates'] for coorX in x.begin]),"edges_end":np.array([coorX['loc']['coordinates'] for coorX in x.end]),"edges_begin_time": np.array([timeX['time'] for timeX in x.begin]),"edges_end_time":np.array([timeX['time'] for timeX in x.end]),"edges_trip_id":x.index.get_values()}))
     edgesDF=edgesDF.assign(length=edgesDF.edges_begin.apply(len)*2)
     return edgesDF
 
@@ -78,7 +80,7 @@ def filterEdgesLength(edgesDF, minPoints=0):
     """
     return edgesDF[edgesDF.length>=minPoints]
 
-def findUserRegionsOfInterst(userEdges, metric=CustomUtils.reverseVincenty, min_samples=5,eps=0.5):
+def findUserRegionsOfInterst(userEdges, metric=CustomUtils.reverseVincenty, min_samples=5,eps=0.5,returnNbCluster=True):
     """
     find recurent regions for the user
     
@@ -95,11 +97,17 @@ def findUserRegionsOfInterst(userEdges, metric=CustomUtils.reverseVincenty, min_
         The maximum distance between two samples for them to be considered
         as in the same neighborhood.
     """
-    res = DBSCAN(metric=metric,min_samples=min_samples,eps=eps).fit(userEdges)
-    nbClusts=len(set(res.labels_))-1
+    precomputed= np.fromiter((metric(*x) for  x in itertools.combinations(userEdges,2)),dtype=np.float)
+
+    precomputed= scipy.spatial.distance.squareform(precomputed)
+    res = DBSCAN(metric='precomputed',min_samples=min_samples,eps=eps).fit(precomputed)
+    if not returnNbCluster : return res.labels_
+
+    nbClusts=len(set(res.labels_))
+    
     return nbClusts, res.labels_
 
-def findAllUsersROI(roiDF,metric=CustomUtils.reverseVincenty,min_samples=5,eps=0.5):
+def findAllUsersROI(roiDF, metric=CustomUtils.reverseVincenty, min_samples=5, eps=0.5,both=False):
     """
     returns data frame of clustering results on each user using @findUserRegionsOfInterst
     
@@ -107,7 +115,7 @@ def findAllUsersROI(roiDF,metric=CustomUtils.reverseVincenty,min_samples=5,eps=0
         grouped start and end points of all users #refer to getGroupedTripEdges
         
     min_samples : int, optional
-        The number of samples in a neighborhood    
+        The number of samples in a neighborhood
         
     metric : string or callable, optional
         The metric to use when calculating distance between instances 
@@ -116,8 +124,12 @@ def findAllUsersROI(roiDF,metric=CustomUtils.reverseVincenty,min_samples=5,eps=0
         The maximum distance between two samples for them to be considered
         as in the same neighborhood.
     """
-    
-    return roiDF.apply(lambda userEdges:  pd.Series([
+    if both :    return roiDF.apply(lambda userEdges:  pd.Series([
+                                                                *findUserRegionsOfInterst(np.concatenate([userEdges.edges_begin, userEdges.edges_end]), min_samples=min_samples,eps=eps,metric=metric)
+                                                            ],index=['both_n_clusters', 'both_clusters']), 
+                              axis=1)
+
+    return roiDF.apply(lambda userEdges :  pd.Series([
                                                                 *findUserRegionsOfInterst(userEdges.edges_begin, min_samples=min_samples,eps=eps,metric=metric),
                                                                 *findUserRegionsOfInterst(userEdges.edges_end, min_samples=min_samples,eps=eps,metric=metric)
                                                             ],index=['n_clusters_begin', 'clusters_begin','n_clusters_end', 'clusters_end']), 
@@ -136,7 +148,7 @@ def getEndClusterStats(trips,userEdges):
     clustersEnd : array of int
         clustering results
     """
-    endStats = trips.loc[userEdges.edges_trip_id].apply(lambda x :pd.Series({"time":x.time[len(x.time)-1],"INSEE_iris_code":x.INSEE_iris_code[len(x.INSEE_iris_code)-1]}),axis=1)
+    endStats = trips.loc[userEdges.edges_trip_id].apply(lambda x :pd.Series({"time":x.time[len(x.time)-1]}),axis=1)
     return endStats.assign(cluster=userEdges.clusters_end,deltaTime=CustomUtils.timeToTimeDelta(endStats.time))
 
 def getBeginClusterStats(trips, userEdges):
@@ -153,10 +165,15 @@ def getBeginClusterStats(trips, userEdges):
         clustering results
     """
     
-    beginStats=trips.loc[userEdges.edges_trip_id].apply(lambda x :pd.Series({"time":x.time[0],"INSEE_iris_code":x.INSEE_iris_code[0]}),axis=1)
-    return beginStats.assign(cluster=userEdges.clusters_begin,deltaTime=CustomUtils.timeToTimeDelta(beginStats.time))
+    beginStats = trips.loc[userEdges.edges_trip_id].apply(lambda x :pd.Series({"time":x.time[0]}),axis=1)
+    return beginStats.assign(cluster = userEdges.clusters_begin,deltaTime = CustomUtils.timeToTimeDelta(beginStats.time))
 
-def recurentTrips(userEdges,metric=tripDistance,min_samples=5,eps=0.5):
+def getAllClusterStats(trips, userEdges):
+    endStats = trips.loc[userEdges.edges_trip_id].apply(lambda x :pd.Series({"time":x.time[len(x.time)-1]}),axis=1)
+    beginStats = trips.loc[userEdges.edges_trip_id].apply(lambda x :pd.Series({"time":x.time[0]}),axis=1)
+    return beginStats.assign(clusterBegin = userEdges.clusters_begin,deltaTimeBegin = CustomUtils.timeToTimeDelta(beginStats.time), clusterEnd=userEdges.clusters_end, deltaTimeEnd=CustomUtils.timeToTimeDelta(endStats.time), trip_clusters=userEdges.trip_clusters)
+
+def recurentTrips(userEdges, metric= tripDistance, min_samples=5, eps=0.5):
     """
     find recurent trips of the user
        

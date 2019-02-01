@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import time 
 from CustomUtils import reverseVincenty
-def getSegments(    osmWays,innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [-1.7626, 48.0632], [-1.7626,48.1656], [-1.5460, 48.1656]]],
+def getSegments(    osmWays,
+                    innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [-1.7626, 48.0632], [-1.7626,48.1656], [-1.5460, 48.1656]]],
                     innerTags =["motorway", "trunk", "primary", "secondary", "tertiary", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link"],
                     outerBox=[[[-1.4460, 48.2056], [-1.4460, 48.0032], [-1.8626, 48.0032], [-1.8626,48.2056], [-1.4460, 48.2056]]],
                     outerTags= ["motorway", "trunk"]
@@ -95,7 +96,11 @@ def parallelClosestSegment(myPoint):
     ).limit(1)
     return next(res,{'_id':'N/A'})['_id']
 
-def buildSegmentsMeta(segments, points):
+def castSpeed(speed):
+    if speed == '50+' : return 50.
+    return float(speed)
+
+def buildSegmentsMeta(segments, points=pd.DataFrame()):
     """ 
     find all incoming/outgoins segments for each segment
     compute the length of each segment
@@ -116,11 +121,15 @@ def buildSegmentsMeta(segments, points):
     ins = ins.groupby('_id').apply(lambda x : np.unique(np.concatenate([*x])))
     outs = outs.groupby('_id').apply(lambda x : np.unique(np.concatenate([*x])))
     
-    segments=segments.assign(maxSpeed=segments.tag.apply(lambda x : x['maxspeed'] if 'maxspeed'in x.keys() else '' ))
-    length = segments['loc'].apply(lambda x : sum([reverseVincenty(a,b) for a, b in zip(x['coordinates'][:-1],x['coordinates'][1:])]))
-    pointCounts=points.groupby(['matching_road']).size()
-    carCounts = points.groupby(['matching_road','id']).size().groupby(['matching_road']).size()
-    return segments.assign(ins=ins, outs=outs, length = length,pointCounts=pointCounts,carCounts=carCounts)
+    segs=segs.assign(maxSpeed=segs.tag.apply(lambda x : castSpeed(x['maxspeed']) if 'maxspeed'in x.keys() else np.nan ))
+    length = segs['loc'].apply(lambda x : sum([reverseVincenty(a,b) for a, b in zip(x['coordinates'][:-1],x['coordinates'][1:])]))
+    if len(points)!= 0:
+        pointCounts=points.groupby(['matching_road']).size()
+        carCounts = points.groupby(['matching_road','id']).size().groupby(['matching_road']).size()
+        segs = segs.assign(pointCounts=pointCounts,carCounts=carCounts)
+    return segs.assign(ins=ins, outs=outs, length = length)
+
+
 
 def setOneWay(segments):
     """

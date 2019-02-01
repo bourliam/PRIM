@@ -38,7 +38,7 @@ def getFoliumMap():
     return folium_map
 
 
-def drawMultipleTrips(trips):
+def drawMultipleTrips(trips,interact):
     """
     (Interactive,deprecated)
     return a map with the trip plotted
@@ -93,7 +93,7 @@ def addTrip(folium_map,trip,color='red',edges_only=False):
     
     MarkerCluster(locations=locs,
                   icons = [folium.Icon(color='green', icon='play-circle'),*[folium.Icon(color=color, icon='info-sign') if not edges_only else '' for _ in range(len(locs)-2) ],folium.Icon(color='black', icon='stop') if len(locs)>1 else []],
-                  popups=['ID : '+trip.id+'<br>Speed : '+str(s)+'<br>Time : '+ str(t) +'<br> cooRdinates : '+'lat : '+str(l['coordinates'][1])+' lon : '+str(l['coordinates'][0])+'<br>Heading : '+str(h) for s,t,l,h in zip(trip['speed'],trip['time'],trip['loc'],trip['heading'])]).add_to(folium_map)
+                  popups=['ID : '+trip.id+'<br>Speed : '+str(s)+'<br>Time : '+ str(t) +'<br> cooRdinates : '+'lat : '+str(l['coordinates'][1])+' lon : '+str(l['coordinates'][0])for s,t,l in zip(trip['speed'],trip['time'],trip['loc'])]).add_to(folium_map)
     folium.PolyLine(locations=locs,color=color).add_to(folium_map)
 
     
@@ -193,7 +193,7 @@ def plotUserRegionsOfInterst(userEdges,folium_map=None,show_outliers=True):
     endLayer = getLayerWithPositions(userEdges.edges_end[validIds],colors, name='end', fmap=folium_map)
     endLayer.add_to(folium_map)
     
-    folium.LayerControl().add_to(folium_map)
+    folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map
 
 def getLayerWithPositions(positions,colors,fmap,name='map'):
@@ -235,6 +235,6 @@ def plotUserTripsClusters(folium_map,trips,userEdges,edges_only=False):
         tripIds = userEdges.edges_trip_id[np.where(userEdges.trip_clusters==cluster)[0]]
         [addTrip(layer,trips.loc[idt],color,edges_only) for idt,color in zip(tripIds,tripColors)]
         layer.add_to(folium_map)
-    folium.LayerControl().add_to(folium_map)
+    folium.LayerControl(collapsed=False).add_to(folium_map)
 
     return folium_map
