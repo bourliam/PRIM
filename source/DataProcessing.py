@@ -4,8 +4,8 @@ from pymongo import MongoClient
 try:
     client
 except NameError:
-    client = MongoClient()
-    osmData = client.osm.ways
+    client = MongoClient("mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr")
+    osmData = client.geolytics.ways
 
 def correctIRIS(point,maxDistance):
     """
@@ -45,7 +45,7 @@ def builIrisDataFrame(irisCollection):
     illeEtVilaineIRIS['loc'].apply(lambda x : [y.reverse() if x['type']== 'Polygon' else  [z.reverse() for z in y] for f in  x['coordinates'] for y in f ])
     return illeEtVilaineIRIS
 
-def loadRawData(coyoteData,limit=None,projection={}):
+def loadProjectedRawData(coyoteData,limit=None,projection={}):
     """
     coyoteData : Mongo collection 
         coyote collection of logs
@@ -68,7 +68,6 @@ def loadRawData(coyoteData,limit=None,projection={}):
         df=df.assign(time=transformedTime)
     return df
 
-
 def loadRawData(coyoteData,limit=None):
     """
     coyoteData : Mongo collection 
@@ -90,7 +89,9 @@ def loadRawData(coyoteData,limit=None):
     return df
 
 def isResidential(location):
-    
+    """
+    check if a pont is in residential area
+    """
     cur=osmData.find({'tag.k':'landuse',
                       'tag.v':{'$in':["commercial",
                                       "construction",

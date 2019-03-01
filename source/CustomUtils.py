@@ -5,6 +5,23 @@ from vincenty import vincenty
 import matplotlib.pyplot as plt
 import datetime
 from matplotlib.colors import rgb2hex
+
+import time
+
+global oldTime
+oldTime=-1
+
+def getTimeSpent(reset=False):
+    global oldTime
+
+    if oldTime == -1 or reset:
+        oldTime =time.time()
+        return "first time call or reset : starting counter"
+    currentTime = time.time()
+    diff = currentTime - oldTime
+    oldTime = currentTime
+    return 'time spent {:.1f} s'.format(diff)
+
 def createIrisPopulationCollection(path,db, name=None):
     """
     Create collection from excel file

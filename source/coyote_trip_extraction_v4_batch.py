@@ -182,7 +182,7 @@ def filterTrips(trips,cnd='ALL',irisFilter=[],maxOverallSpeed=0.2,minDuration=60
     if trips.empty: return trips
 
     # minimumTripDistance (km)
-    minimumTripDistance = (trips.trip_distance_km>=minDistance)
+    minimumTripDistance = (trips.trip_distance_km >= minDistance)
     trips=trips[minimumTripDistance]
     if trips.empty: return trips
 

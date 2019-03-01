@@ -105,5 +105,6 @@ class SpeedMatrix:
       ))
     )
     self.avg_speed['time'] = self.avg_speed['_id'].apply(lambda x: x['time'])
+    countsDF=self.avg_speed.pivot(index='matching_road', columns='time', values='count')
     self.avg_speed = self.avg_speed.pivot(index='matching_road', columns='time', values='avg_speed')
-    return self.avg_speed
+    return self.avg_speed,countsDF

@@ -2,6 +2,13 @@ import pandas as pd
 import numpy as np
 import time 
 from CustomUtils import reverseVincenty
+
+def reverseCoordinates(x):
+    retDict = {k:v for k,v in x.items() if type(v)!=list}
+    coords= x['coordinates'][::-1]
+    retDict['coordinates'] = coords
+    return retDict
+
 def getSegments(    osmWays,innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [-1.7626, 48.0632], [-1.7626,48.1656], [-1.5460, 48.1656]]],
                     innerTags =["motorway", "trunk", "primary", "secondary", "tertiary", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link"],
                     outerBox=[[[-1.4460, 48.2056], [-1.4460, 48.0032], [-1.8626, 48.0032], [-1.8626,48.2056], [-1.4460, 48.2056]]],
@@ -99,7 +106,7 @@ def castSpeed(speed):
     if speed == '50+' : return 50.
     return float(speed)
 
-def buildSegmentsMeta(segments, points=pd.DataFrame()):
+def buildSegmentsMeta(segments, points=pd.DataFrame(),speedindex=[],linearOnly=False):
     """ 
     find all incoming/outgoins segments for each segment
     compute the length of each segment
@@ -113,13 +120,32 @@ def buildSegmentsMeta(segments, points=pd.DataFrame()):
         logs
     """
     noOneWays=segments[segments.oneWay!=1].copy()
+    newLocs = noOneWays['loc'].apply(lambda x :reverseCoordinates(x) )
+    noOneWays=noOneWays.assign(loc=newLocs)
     noOneWays.nodes=noOneWays.nodes.apply(lambda x : x[::-1])
+    segmentIndex= np.array(list(map(lambda x : str(x)+'_0',segments.index.values)))
+    noOneWaysIndex = np.array(list(map(lambda x : str(x)+'_1',noOneWays.index.values)))
+    segmentIndex= np.concatenate([segmentIndex,noOneWaysIndex])
     segs=pd.concat([segments,noOneWays])
-    ins = segs.nodes.apply(lambda x : segs.index[segs.nodes.apply(lambda y : ((y[len(y)-1] in x[:-1]) or (x[0] in y[1:])) and x!=y and x!=y[::-1])].values)
-    outs = segs.nodes.apply(lambda x : segs.index[segs.nodes.apply(lambda y : ((x[len(x)-1] in y[:-1]) or (y[0] in x[1:])) and x!=y and x!=y[::-1])].values)
-    ins = ins.groupby('_id').apply(lambda x : np.unique(np.concatenate([*x])))
-    outs = outs.groupby('_id').apply(lambda x : np.unique(np.concatenate([*x])))
+    segs=segs.assign(segmentID = segmentIndex)
+    segs.set_index('segmentID',inplace=True)
+    if len(speedindex)>0 :
+        segs=segs.reindex(speedindex)
+        
+
+    segs.reset_index(inplace=True)
+    segs.index.rename('segmentIndex',inplace=True)
     
+    
+    if not linearOnly :
+        ins = segs.nodes.apply(lambda x : segs.index[segs.nodes.apply(lambda y : ((y[len(y)-1] in x[:-1]) or (x[0] in y[1:])) and x!=y and x!=y[::-1])].values)
+        outs = segs.nodes.apply(lambda x : segs.index[segs.nodes.apply(lambda y : ((x[len(x)-1] in y[:-1]) or (y[0] in x[1:])) and x!=y and x!=y[::-1])].values)
+    else:
+        ins = segs.nodes.apply(lambda x : segs.index[segs.nodes.apply(lambda y :  (x[0] == y[-1]) and x!=y and x!=y[::-1])].values)
+        outs = segs.nodes.apply(lambda x : segs.index[segs.nodes.apply(lambda y : (x[-1] == y[0]) and x!=y and x!=y[::-1])].values)    
+    
+    ins = ins.groupby('segmentIndex').apply(lambda x : np.unique(np.concatenate([*x])))
+    outs = outs.groupby('segmentIndex').apply(lambda x : np.unique(np.concatenate([*x])))
     segs=segs.assign(maxSpeed=segs.tag.apply(lambda x : castSpeed(x['maxspeed']) if 'maxspeed'in x.keys() else np.nan ))
     length = segs['loc'].apply(lambda x : sum([reverseVincenty(a,b) for a, b in zip(x['coordinates'][:-1],x['coordinates'][1:])]))
     if len(points)!= 0:
@@ -137,9 +163,14 @@ def setOneWay(segments):
     segments: pandas dataframe
         Osm ways
     """
-    return segments.assign(oneWay=segments.tag.apply(lambda x :
+    segments = segments.assign(oneWay=segments.tag.apply(lambda x :
                                                                   1 if ('oneway' in x and (x['oneway']=='yes')) 
                                                                       or(x['highway']=='motorway') 
                                                                       or('junction' in x and(x['junction'] in ['circular','roundabout'] ))
                                                             else -1 if  ('oneway' in x and x['oneway']=='-1' ) 
                                                             else  0))
+    
+    
+    segments.apply(lambda x : x['loc']['coordinates'].reverse() if x['oneWay']==-1 else '',axis=1)
+    segments.oneWay.replace(-1,1,inplace=True)
+    return segments

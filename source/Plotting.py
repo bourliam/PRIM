@@ -204,7 +204,7 @@ def getLayerWithPositions(positions,colors,fmap,name='map'):
     for i in range(len(positions))]
     return layer
 
-def plotRoads(roads,colors=None):
+def plotRoads(roads,inverseIndexes=None,colors=None,fmap=None,name="layer",headTail=None):
     """
     plot roads with colors
     
@@ -214,15 +214,28 @@ def plotRoads(roads,colors=None):
     Colors: Array or None
         color for each road
     """
-    folium_map = folium.Map(location=[48.14301,-1.69537],
-                        zoom_start=13,
-                        tiles="OpenStreetMap")
+    folium_map = folium.plugins.FeatureGroupSubGroup(fmap,name=name,show=False)
+    
+    dashed = ["6,3"if x==1 else None for x in roads['oneWay'] ]
     if type(colors)==type(None) :
-        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']]).add_to(folium_map) for x in roads]
+        print(roads['loc'].shape,roads.index.values.shape,len(dashed))
+        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']], popup = str(idx),dash_array=d).add_to(folium_map) for x,idx,d in zip(roads['loc'],roads.index.values,dashed)]
     else : 
-        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']],color=color).add_to(folium_map) for x,color in zip(roads,colors)]
-
+        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']], color=color,popup=str(idx)+"/"+str(gdx),dash_array=d).add_to(folium_map) for x,color,idx,gdx,d in zip(roads['loc'],colors,roads.segmentID.values,inverseIndexes,dashed)]
+        if type(headTail)==type(None):
+            [folium.CircleMarker(location=lo[::-1] ,radius =2).add_to(folium_map) for lo in roads['loc'].apply(lambda x: x['coordinates'][0]) ]
+            [folium.CircleMarker(location=lo[::-1] ,radius =1,color='red').add_to(folium_map) for lo in roads['loc'].apply(lambda x: x['coordinates'][-1]) ]
+        else :
+            [folium.CircleMarker(location=lo[::-1] ,radius =1,color='red').add_to(folium_map) for lo in headTail]
     return folium_map
+
+def stackHistotyLayers(layers,fmap):
+    """
+    add layers to map
+    """
+    [layer.add_to(fmap) for layer in layers]
+    folium.LayerControl(collapsed=False).add_to(fmap)
+    return fmap
 
 def plotUserTripsClusters(folium_map,trips,userEdges,edges_only=False):
     if folium_map == None :
@@ -238,3 +251,41 @@ def plotUserTripsClusters(folium_map,trips,userEdges,edges_only=False):
     folium.LayerControl(collapsed=False).add_to(folium_map)
 
     return folium_map
+
+
+
+def getMergeLayer(fmap,mergeResults,snapShot,segmentsMeta,name):
+    """
+        Create folium layer of the merged segments
+    """
+    colors = CustomUtils.getClustersColors(np.fromiter(range(len(mergeResults.unique())),np.int), plt.cm.brg)
+    np.random.shuffle(colors)
+    colors=mergeResults.replace(dict(zip(mergeResults.unique(),colors)))
+    headTail=pd.concat([snapShot['head'],snapShot['tail']])
+    headTailLocations = np.concatenate(segmentsMeta['loc'].apply(lambda x : x['coordinates']).values)
+    headTailLocations = headTailLocations[np.intersect1d(np.concatenate(segmentsMeta.nodes.values),headTail.values,return_indices=True)[1]]
+    layer = Plotting.plotRoads(segmentsMeta.loc[mergeResults.index],mergeResults.values,colors=colors,fmap=fmap,name=name,headTail=headTailLocations)
+    return layer
+
+def makePercentageSnapShots(fmap,mergedSegments,inversedIndex,segmentsMeta):
+    """
+    Create a map of the merged segments with multiple layers (showing 10% more data each layer)
+    """
+    layers=[]
+    for i in range(0,11):
+        
+        snapShot=mergedSegments[(mergedSegments.nonNullProp>=(i/10))]
+        mergeResults = inversedIndex.loc[inversedIndex.isin(snapShot.index)]
+        layer = getMergeLayer(fmap,mergeResults,snapShot,segmentsMeta,'layer {:4.2f}%, nbSegmenst= {}'.format(i*10,len(snapShot)))
+        layers.append(layer)
+    return layers
+
+def saveBigMergesMap(mergeResults,segmentsMeta,fmap,name):
+    """
+    Create a map for the 15 biggest merges
+    """
+    bigMerges=mergeResults.value_counts()[:15].index
+    colors = CustomUtils.getClustersColors(np.fromiter(range(len(bigMerges)),np.int), plt.cm.brg)
+    colors=mergeResults.loc[mergeResults.isin(bigMerges)].replace(dict(zip(bigMerges,colors)))
+    fmap=plotRoads(segmentsMeta.loc[mergeResults[mergeResults.isin(bigMerges)].index],mergeResults[mergeResults.isin(bigMerges)].values,colors=colors,fmap=fmap,name=name)
+    return fmap
