@@ -175,7 +175,7 @@ def computePairCriteria(segment1, segment2, mergedSegments, updatedSpeed, invers
         return np.inf
 
     if mergedSegments.loc[segment1].nonNullProp >= minValidData :  
-            return np.inf
+        return np.inf
     
     if segment2 == segment1 : return np.inf
     criteronScores = [
@@ -383,7 +383,7 @@ def mergeSegments(minValidData = 0.8,weights=np.array([1,1,1]).reshape(-1,1),spe
     print("getting speed matrix :")
     
     if type(speedsMx) == type(None):
-        sm = SpeedMatrix("congestion", "coyote2", "osm", "roads")
+        sm = SpeedMatrix("geolytics", "coyote", "geolytics", "ways")
         roads_ids = segments.index.values.tolist()
         speeds = sm.get_speed_matrix(15, roads_ids, 17, 20)
 
