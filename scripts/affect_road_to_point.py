@@ -1,7 +1,7 @@
 
 from pymongo import MongoClient, UpdateOne
 from pymongo.errors import BulkWriteError
-import pprint
+from pprint import pprint
 import time
 
 

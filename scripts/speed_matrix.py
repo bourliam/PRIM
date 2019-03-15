@@ -23,7 +23,7 @@ class SpeedMatrix:
             roads_name {str} -- The name of the roads collection (default: {"roads"})
         """
 
-        client = MongoClient()
+        client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
         self.collection = client[db_name][collection_name]
         self.osm_roads = client[db_osm_name][roads_name]
         self.avg_speed = pd.DataFrame()
