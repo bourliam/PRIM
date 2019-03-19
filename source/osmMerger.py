@@ -175,7 +175,7 @@ def computePairCriteria(segment1, segment2, mergedSegments, updatedSpeed, invers
         return np.inf
 
     if mergedSegments.loc[segment1].nonNullProp >= minValidData :  
-            return np.inf
+        return np.inf
     
     if segment2 == segment1 : return np.inf
     criteronScores = [
