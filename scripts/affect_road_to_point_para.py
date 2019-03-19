@@ -79,7 +79,7 @@ class Worker(Process):
 
   def run(self):
 
-    client = MongoClient()
+    client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
 
     self.collection = client[self.db_name][self.collection_name]
     self.osm_roads = client[self.db_osm_name][self.roads_name]
@@ -160,7 +160,7 @@ class Affect_road_to_point:
     """
     start = time.time()
     
-    client = MongoClient()
+    client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
     self.collection = client[self.db_name][self.collection_name]
 
     nbPoints = self.collection.count()
@@ -188,7 +188,7 @@ class Affect_road_to_point:
     Affect the roads using only one main thread.
     """
 
-    client = MongoClient()
+    client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
 
     self.collection = client[self.db_name][self.collection_name]
     self.osm_roads = client[self.db_osm_name][self.roads_name]
