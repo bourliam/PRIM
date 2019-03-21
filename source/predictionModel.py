@@ -24,21 +24,21 @@ class PredictionModel:
         self.add_time = add_time
         self.max_value = max_value
         self.min_max_scale = min_max_scale
-        self.model=None
+        self.model = None
         self.valid_split=valid_split
-        self.x,self.y,self.t =self.getXY()
+        self.x, self.y, self.t = self.getXY()
         self.__reversed_process=[]
     
     
-    ''' ERROR: data_model not defined
+    
     def getDaysTypes(self):
-        day_types = pd.DatetimeIndex(self.t.reshape(-1)).weekday.values.reshape(self.t.shape)
-        time_fraction = (CustomUtils.timeToSeconds(pd.DatetimeIndex(data_model.t.reshape(-1)))/(60*60)).values.reshape(self.t.shape)
+        day_types = pd.Series(self.t.reshape(-1)).dt.weekday.values.reshape(self.t.shape)
+        time_fraction = (CustomUtils.timeToSeconds(pd.DatetimeIndex(self.t.reshape(-1)))/(60*60)).values.reshape(self.t.shape)
         time_input = np.concatenate([day_types,time_fraction],1)
         return time_input[:int(len(self.x)*(self.valid_split))],time_input[int(len(self.x)*(self.valid_split)):]
-    '''
+
     
-    def getExamples(self,sequence,hours):
+    def getExamples(self, sequence, hours):
         sequence_length = len(sequence)
         sub_sequence_length = self.input_lag + self.output_lag
         if sub_sequence_length > sequence_length :
@@ -48,20 +48,20 @@ class PredictionModel:
                [hours[i + self.input_lag:i + self.input_lag + self.output_lag] for i in range(0, sequence_length - sub_sequence_length + 1, 1)]  
     
     def getXY(self):
-        nsegs,ntime=self.data.shape
-        if(ntime%self.sequence_length)!= 0 :
+        nsegs, ntime = self.data.shape
+        if(ntime%self.sequence_length) != 0 :
             raise ValueError("sequence length {} not compatible with number of time features {}".format(self.sequence_length,ntime))
 
-        shapedData = self.data.values.T.reshape(int(ntime/self.sequence_length),self.sequence_length,nsegs)
-        timestamps = pd.Series(self.data.columns).values.reshape(int(ntime/self.sequence_length),self.sequence_length)
+        shapedData = self.data.values.T.reshape(int(ntime/self.sequence_length), self.sequence_length, nsegs)
+        timestamps = pd.Series(self.data.columns).values.reshape(int(ntime/self.sequence_length), self.sequence_length)
         
-        examples=[self.getExamples(x,hours) for x,hours in zip(shapedData,timestamps)]
+        examples=[self.getExamples(x,hours) for x, hours in zip(shapedData, timestamps)]
 
         x,y,t = list(zip(*examples))
         return np.concatenate(x), np.concatenate(y), np.concatenate(t)
     
     
-    def getIndexes(self,idx):
+    def getIndexes(self, idx):
         cx,cy= (idx +(self.input_lag+self.output_lag-1)*(idx//(self.sequence_length - self.input_lag-self.output_lag+1)),\
                 idx +(self.input_lag+self.output_lag-1)*(idx//(self.sequence_length - self.input_lag-self.output_lag+1))+self.input_lag )
         return (self.data.columns[cx:cy].values,self.data.columns[cy:cy+self.output_lag].values)
@@ -97,18 +97,17 @@ class PredictionModel:
     def reverseScaleLog(self,y):
         return np.expm1(y)       
 
-    ''' ERROR : no removeTime => see removeTime() 
+   
     def addTime(self):
         self.__reversed_process.append(self.removeTime)
-        self.x=np.concatenate((self.x,self.t.reshape(-1,self.t.shape[1],1)),2)
-    '''
+        self.x = np.concatenate((self.x, self.t.reshape(-1, self.t.shape[1],1)), 2)
 
-    ''' ERROR: data_model not defined
+
     def removeTime(self, y):
         if y.shape == self.x.shape :
-            return np.delete(data_model.x, data_model.x.shape[2]-1,axis=2)
+            return np.delete(self.x, self.x.shape[2]-1, axis=2)
         return y
-    '''
+    
 
     def shiftMean(self):
         self.__reversed_process.append(self.resetMean)
@@ -130,11 +129,13 @@ class PredictionModel:
             self.scaleLog()
         if self.min_max_scale : 
             self.scaleMinMax()
- #       if self.add_time :
- #           self.addTime()
+        if self.add_time :
+            self.addTime()
 
+        if self.input_lag == 1 :
+            self.x = self.x.reshape(-1, self.x.shape[2])
         if self.output_lag == 1 :
-            self.y=self.y.reshape(-1,self.y.shape[2])
+            self.y = self.y.reshape(-1, self.y.shape[2])
 
     def getRawYData(self,y):
         return reduce(lambda res, f:f(res), self.__reversed_process[::-1], y)
@@ -184,7 +185,7 @@ class PredictionModel:
         df = pd.DataFrame(self.getRawYData(x).swapaxes(1,2).tolist(),index=index,columns=self.data.index)
         return df.T
     
-    ''' ERROR: no getDaysTypes() => see getDaysType
+
     def predict(self, split="full"):
         secondary_input = self.getDaysTypes()
         if split.lower() == "full":
@@ -192,13 +193,12 @@ class PredictionModel:
             secondary_input = np.concatenate(secondary_input)
         if split.lower() == "train":
             main_input,*_ = self.trainSplit()
-            secondary_input=secondary_input[0]
+            secondary_input = secondary_input[0]
         if split.lower() == "test":
             *_,main_input,_ = self.trainSplit()
-            secondary_input=secondary_input[1]
+            secondary_input = secondary_input[1]
             
         if(len(self.model.input_shape)==1):
             return self.model.predict(main_input)
         
         return self.model.predict([main_input,secondary_input])
-    '''
