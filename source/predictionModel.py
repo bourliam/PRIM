@@ -135,8 +135,8 @@ class PredictionModel:
         if self.add_time:
             self.addTime()
 
-        if self.input_lag == 1:
-            self.x = self.x.reshape(-1, self.x.shape[2])
+        # if self.input_lag == 1:
+        #     self.x = self.x.reshape(-1, self.x.shape[2])
         if self.output_lag == 1:
             self.y = self.y.reshape(-1, self.y.shape[2])
 
