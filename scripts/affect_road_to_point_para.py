@@ -81,6 +81,8 @@ class Worker(Process):
     time.sleep(1*self.number+3)
     client =  MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017,connect=False)
 
+    client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
+
     self.collection = client[self.db_name][self.collection_name]
     self.osm_roads = client[self.db_osm_name][self.roads_name]
 
