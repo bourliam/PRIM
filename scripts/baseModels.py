@@ -1,11 +1,12 @@
 
+import datetime
+
 import numpy as np
 import pandas as pd
-
 import statsmodels.tsa.api as smt
 
-import datetime
 from datetime import timedelta
+
 
 class BaseModels:
     '''This class contains the base models that we aim to surpass.
@@ -15,7 +16,7 @@ class BaseModels:
     AR(5).
     '''
 
-    def __init__(self, model, historic_data=None,nb_segments=748):
+    def __init__(self, model, historic_data=None):
         '''Base models class initialisation
         
         Arguments:
@@ -32,6 +33,18 @@ class BaseModels:
 
 
     def predict(self, x, time=datetime.time(14,0)):
+        '''Method to make predictions, depending on the model used.
+        
+        Arguments:
+            x {pandas DataFRame} -- The input, the last data, just before the what we want to predict.
+        
+        Keyword Arguments:
+            time {datetime.time} -- Only for timeHistoric model. The time for which we want the prediction. (default: {datetime.time(14,0)})
+        
+        Returns:
+            numpy.array -- The array of values predicted.
+        '''
+
         y=[]
         if self.type == 'lastValue':
             y = x.iloc[:, -1]
@@ -47,6 +60,15 @@ class BaseModels:
 
 
     def AR5_train(self, updatedSpeeds):
+        '''The method to train teh AR(5) model
+        
+        Arguments:
+            updatedSpeeds {pandas.DataFrame} -- The historic data for training
+        
+        Returns:
+            list -- A list of AR5 models. One per section.
+        '''
+
         print('Training the AR(5) model')
         train = updatedSpeeds.values
         train_dates = updatedSpeeds.columns
@@ -79,6 +101,16 @@ class BaseModels:
 
 
     def AR5_single_pred(self, data, section):
+        '''Method to predict the foloowing value for a single section
+        
+        Arguments:
+            data {pandas.DataFrame} -- The input data
+            section {int} -- The id of the section considered
+        
+        Returns:
+            float -- The speed prediction for this one section
+        '''
+
         coefs = self.models[section].params
         pred = coefs[0]
         
@@ -89,9 +121,16 @@ class BaseModels:
 
 
     def AR5(self, x):
+        '''The method for AR5 predictions
+        
+        Arguments:
+            x {panda.DataFrame} -- The input data. (data of last lags)
+        
+        Returns:
+            numpy.array -- The predictions
+        '''
 
         predictions = np.array([self.AR5_single_pred(x, i) for i in range(x.shape[0])])
-        
         return predictions
 
 
