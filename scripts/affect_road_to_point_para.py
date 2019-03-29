@@ -78,6 +78,8 @@ class Worker(Process):
     self.maxDistance = maxDistance
 
   def run(self):
+    time.sleep(1*self.number+3)
+    client =  MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017,connect=False)
 
     client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
 
@@ -86,53 +88,60 @@ class Worker(Process):
 
     requests = []
     count = 0
-    
-    for point in self.collection.find().skip(self.number*self.limit).limit(self.limit):
-      road = self.osm_roads.find_one({
-        "loc": {
-          "$near": {
-            "$geometry": {
-              "type": "Point" ,
-              "coordinates": point['loc']['coordinates']
-            },
-            "$maxDistance": self.maxDistance
-          }
-        }
-      },
-      { "_id": 1, "loc": 1, "key": 1, "tag": 1}
-      )
-      
-      heading = 0
-
-      if road == None:
-        road = {"_id": ""}
-      else:
-        headings = get_headings(road)
-        if len(headings) == 2:
-          if 180 - abs(abs(headings[0] - point['heading']) - 180) > 90:
-            heading = 1
-
-
-      requests.append(UpdateOne({ '_id': point['_id'] }, { '$set': { 'matching_road': road['_id'], 'heading_road': heading } }))
-      
-      count += 1
-
-      if count % 1000 == 0:
-        try:
-          self.collection.bulk_write(requests)
+    points = self.collection.find({},{'loc':1,'heading':1},no_cursor_timeout=True,batch_size=1000).skip(self.number*self.limit).limit(self.limit)
+    try :
+        for point in points:
+          if count%1000==0 and count<3000 :
           
-          requests = []
-        except BulkWriteError as bwe:
-          pprint(bwe.details)
-      
-      if self.number == 0 and count % 10000 == 0:
-        print("Worker", self.number, ":", count, "points modified /", self.limit, end='\r', flush=True)
+            print("{:} done {:}, {:}".format(self.number,count,time.time()))
+          road = self.osm_roads.find_one({
+            "loc": {
+              "$near": {
+                "$geometry": {
+                  "type": "Point" ,
+                  "coordinates": point['loc']['coordinates']
+                },
+                "$maxDistance": self.maxDistance
+              }
+            }
+          },
+          { "_id": 1, "loc": 1, "key": 1, "tag": 1}
+          )
 
-    if count % 1000 != 0:
-      self.collection.bulk_write(requests)
+          heading = 0
 
-    print("Worker", self.number, "done:", count, "points modified")
+          if road == None:
+            road = {"_id": ""}
+          else:
+            headings = get_headings(road)
+            if len(headings) == 2:
+              if 180 - abs(abs(headings[0] - point['heading']) - 180) > 90:
+                heading = 1
 
+
+          requests.append(UpdateOne({ '_id': point['_id'] }, { '$set': { 'matching_road': road['_id'], 'heading_road': heading } }))
+
+          count += 1
+
+          if count % 1000 == 0:
+            try:
+              self.collection.bulk_write(requests,ordered=False)
+
+              requests = []
+            except BulkWriteError as bwe:
+              pprint(bwe.details)
+
+          if self.number == 0 and count % 10000 == 0:
+            print("Worker", self.number, ":", count, "points modified /", self.limit, end='\r', flush=True)
+
+        if count % 1000 != 0:
+          self.collection.bulk_write(requests)
+
+        print("Worker", self.number, "done:", count, "points modified")
+    except:
+        points.close()
+        print("closing cursor due to error")
+        raise
 
 
 class Affect_road_to_point:
@@ -160,7 +169,7 @@ class Affect_road_to_point:
     """
     start = time.time()
     
-    client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
+    client =  MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
     self.collection = client[self.db_name][self.collection_name]
 
     nbPoints = self.collection.count()
@@ -188,7 +197,7 @@ class Affect_road_to_point:
     Affect the roads using only one main thread.
     """
 
-    client = MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
+    client =  MongoClient(host = "mongodb://mbouchouia:cbf20Li34!@mongodb-tp.enst.fr", port=27017)
 
     self.collection = client[self.db_name][self.collection_name]
     self.osm_roads = client[self.db_osm_name][self.roads_name]
