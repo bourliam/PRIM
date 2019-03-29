@@ -25,7 +25,6 @@ PRIM
   - insert_osm_data.py
   - speed_matrix.py
   - exportIlleEtVillaine.py
-- source
   - DataProcessing.py
   - OsmProcessing.py
   - Plotting.py
