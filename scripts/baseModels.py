@@ -1,12 +1,11 @@
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Lambda
 
-from statsmodels.tsa.ar_model import AR
+import statsmodels.tsa.api as smt
 
+import datetime
+from datetime import timedelta
 
 class BaseModels:
     '''This class contains the base models that we aim to surpass.
@@ -21,111 +20,79 @@ class BaseModels:
         
         Arguments:
             model {string} -- The model to create ['lastValue', 'historic', 'timehistoric', 'AR5']
-            historic_data {ps.Series} -- The historical data, typically updatedSpeed.iloc[:,:x_train.shape[0]]
+            historic_data {ps.Series} -- The historical data, typically updatedSpeed.iloc[:,:200]
         '''
 
         self.history = historic_data
+        self.type = model
 
-        if model == 'lastValue':
-            self.model = self.lastValueModel(nb_segments=nb_segments)
-        elif model == 'historic':
-            self.model = self.historicModel(nb_segments=nb_segments)  
-        elif model == 'timeHistoric':
-            self.model = self.timeHistoricModel(nb_segments=nb_segments)
-        #elif model == 'ar5':
-            #self.model = self.AR5()
-        else:
-            self.model = None
-
-    def lastValueModel(self, loss='MSE', optimizer='adam', nb_segments=748):
-        '''This model only predicts the last known value.
+        if model == 'AR5':
+            self.models = self.AR5_train(historic_data)
         
-        Keyword Arguments:
-            loss {str} -- The loss used (default: {'MSE'})
-            optimizer {str} -- The optimizer used (default: {'adam'})
-            nb_segments {int} -- The number of segments studied (default: {748})
+
+
+    def predict(self, x, time=datetime.time(14,0)):
+        y=[]
+        if self.type == 'lastValue':
+            y = x.iloc[:, -1]
+        elif self.type == 'historic':
+            y = self.history.mean(axis=1).values
+        elif self.type == 'timeHistoric':
+            columns = [d for d in self.history.columns if d.time()==time]
+            y = self.history[columns].mean(axis=1).values
+        elif self.type == 'AR5':
+            y = self.AR5(x)
+        return y
+
+
+
+    def AR5_train(self, updatedSpeeds):
+        print('Training the AR(5) model')
+        train = updatedSpeeds.values
+        train_dates = updatedSpeeds.columns
+        print('Train data shape:', train.shape)
         
-        Returns:
-            Model -- The keras model
-        '''
+        print('\nFilling the voids...')
+        delta = timedelta(minutes=15)
 
-        inputs = Input(shape=(None, nb_segments), name='input')
+        train_filled = train[:,0].reshape(-1,1)
+        train_dates_filled=[train_dates[0]]
+        for i in range(1, len(train_dates)):
+            while train_dates_filled[-1] + delta != train_dates[i]:
+                train_dates_filled.append(train_dates_filled[-1] + delta)
+                train_filled = np.concatenate((train_filled, np.zeros((train_filled.shape[0],1))), axis=1)
+                
+            train_filled = np.concatenate((train_filled, train[:,i].reshape(-1,1)), axis=1)
+            train_dates_filled.append(train_dates[i])
+            
+        train_dates_filled = np.array(train_dates_filled)
+        print('Filling done. New train data shape:', train_filled.shape)
+
+        print('\nTraining the models...')
         
-        predictions = Lambda(lambda x: x[:, -1])(inputs)
+        max_lag = 5
+        print('Params: max_lag:', max_lag)
+        models = [smt.AR(train_filled[i], dates=train_dates_filled, freq='15min').fit(maxlag=max_lag, trend='c') for i in range(train_filled.shape[0]) ]
+        print('\nTraining finished !')
 
-        model = Model(inputs=inputs, outputs=predictions)
-        model.compile(loss=loss, optimizer=optimizer)
-        return model
+        return models
 
 
-
-    def historicModel(self, loss='MSE', optimizer='adam', nb_segments=748):
-        '''This model predicts the average of the historical values for each section
+    def AR5_single_pred(self, data, section):
+        coefs = self.models[section].params
+        pred = coefs[0]
         
-        Keyword Arguments:
-            loss {str} -- The loss used (default: {'MSE'})
-            optimizer {str} -- The optimizer used (default: {'adam'})
-            nb_segments {int} -- The number of segments studied (default: {748})
+        for i in range(1,6):
+            pred += coefs[i] * data.iloc[section, 5-i]
         
-        Returns:
-            Model -- The keras model
-        '''
+        return pred
 
-        inputs = Input(shape=(None, nb_segments), name='input')
+
+    def AR5(self, x):
+
+        predictions = np.array([self.AR5_single_pred(x, i) for i in range(x.shape[0])])
         
-        historic_values = self.history.mean(axis=1).values
-
-        def const(x):
-            vec = tf.constant(historic_values,  dtype='float32')
-            matrix = tf.ones_like(x[:,1,:]) * vec
-            return matrix
-        
-        predictions = Lambda(const)(inputs)
-
-        model = Model(inputs=inputs, outputs=predictions)
-        model.compile(loss=loss, optimizer=optimizer)
-        return model
+        return predictions
 
 
-
-    def timeHistoricModel(self, loss='MSE', optimizer='adam', nb_segments=748):
-        ''' NOT DONE YET
-        
-        This model predicts the average of the historical values at the current time for each section
-
-        Keyword Arguments:
-            loss {str} -- The loss used (default: {'MSE'})
-            optimizer {str} -- The optimizer used (default: {'adam'})
-            nb_segments {int} -- The number of segments studied (default: {748})
-
-        Returns:
-            Model -- The keras model
-        '''
-
-        inputs = Input(shape=(None, nb_segments), name='input')
-        
-        historic_values = self.history.mean(axis=1).values
-
-        def const(x):
-            vec = tf.constant(historic_values,  dtype='float32')
-            matrix = tf.ones_like(x[:,1,:]) * vec
-            return matrix
-        
-        predictions = Lambda(const)(inputs)
-
-        model = Model(inputs=inputs, outputs=predictions)
-        model.compile(loss=loss, optimizer=optimizer)
-        return model
-
-
-    def AR5(self, train):
-        '''NOT DONE YET
-        
-        AR5 implementation
-
-        '''
-
-        model = AR(train)
-        model = model.fit()
-        return model
-        
+    
