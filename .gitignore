@@ -1,6 +1,7 @@
 /random
 .vscode
-*.json
+.json
+*.html
 *.qgz
 *.zip
 .ipynb_checkpoints/

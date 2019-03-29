@@ -385,7 +385,7 @@ def mergeSegments(minValidData = 0.8,weights=np.array([1,1,1]).reshape(-1,1),spe
     if type(speedsMx) == type(None):
         sm = SpeedMatrix("geolytics", "coyote", "geolytics", "ways")
         roads_ids = segments.index.values.tolist()
-        speeds = sm.get_speed_matrix(15, roads_ids, 17, 20)
+        speeds = sm.get_speed_matrix(15, roads_ids, 14, 19)
 
     else :
         speeds = speedsMx
@@ -439,10 +439,4 @@ def mergeSegments(minValidData = 0.8,weights=np.array([1,1,1]).reshape(-1,1),spe
     fmap= Plotting.stackHistotyLayers(layers,fmap)
     fmap.save('RoadsHist.html')
             
-    return inversedIndex ,segmentsMeta
-
-
-
-
-
-
+    return inversedIndex ,segmentsMeta,mergedSegments
