@@ -177,3 +177,45 @@ def setOneWay(segments):
     segments.oneWay.replace(-1,1,inplace=True)
     return segments
 
+def getAdjacencyMatrix(segmentsMeta):
+    """
+    Create  adjacency matrix from osm segments
+    """
+    acc=pd.DataFrame([np.arange(segmentsMeta.index.max()+1),np.arange(segmentsMeta.index.max()+1)]).T
+    acc.columns=["idx1","idx2"]
+    acc=acc.set_index(["idx1","idx2"]).assign(vals=1)
+    insDF  = segmentsMeta['ins'].apply(pd.Series).stack().droplevel(1).astype(int)
+    insDF=pd.DataFrame(insDF).reset_index()
+    insDF.columns=["idx1","idx2"]
+    insDF=insDF.set_index(["idx1","idx2"]).assign(vals=1)
+    acc=acc.join(insDF,how='outer',lsuffix="l").assign(val=1).drop(['valsl','vals'],axis=1)
+    acc = acc.unstack()
+    return  acc.add(acc.T.values,fill_value=0)
+
+def addLevel(adjacency_matrix,lvl=1):
+    """
+    Weights the  adjacency matrix ( the heigher the weight the closer the roads)
+    
+    """
+    
+    
+    for _ in range(lvl):
+        
+        lupdate=[adjacency_matrix.loc[adjacency_matrix.iloc[i].notna().values].notna().sum().values for i in range(len(adjacency_matrix))]
+        df2=pd.DataFrame(lupdate).clip(upper=1).replace(0,np.nan)
+        adjacency_matrix=adjacency_matrix.add(df2.values,fill_value=0)
+        
+    adjacency_matrix = adjacency_matrix.fillna(0)
+    adjacency_matrix = adjacency_matrix.droplevel(0,axis=1)
+    return adjacency_matrix
+
+def mergeAdjacencyMatrix(adjacency_matrix, mergeResults,segmentsMeta):
+    """
+    reset/merge adjacency matrix index with merged index (Osm Merger Results)
+    """
+    updated_adjacency_matrix = adjacency_matrix.groupby(mergeResults).max().T.groupby(mergeResults).max()
+    updated_adjacency_matrix.index   = updated_adjacency_matrix.index.astype(int)
+    updated_adjacency_matrix.columns = updated_adjacency_matrix.columns.astype(int)
+    updated_adjacency_matrix.set_axis(segmentsMeta.loc[updated_adjacency_matrix.columns].segmentID.values,axis=1,inplace=True)
+    updated_adjacency_matrix.set_axis(segmentsMeta.loc[updated_adjacency_matrix.index].segmentID.values,axis=0,inplace=True)
+    return updated_adjacency_matrix
