@@ -423,6 +423,8 @@ class DataModel:
         """
         make prediction on the data using the stored model (baseline or lstm for now)
         """
+            
+        time_index = [self.getIndexes(i)[1][0] for i in range(len(self.x))]
         
         secondary_input = self.getDaysTypes()
         if split.lower() == "full":
@@ -430,15 +432,17 @@ class DataModel:
             secondary_input = np.concatenate(secondary_input)
         if split.lower() == "train":
             main_input,*_ = self.trainSplit()
+            time_index = time_index[:int(len(self.x)*(self.valid_split))]
             secondary_input=secondary_input[0]
         if split.lower() == "test":
             *_,main_input,_ = self.trainSplit()
+            time_index = time_index[int(len(self.x)*(self.valid_split)):]
             secondary_input=secondary_input[1]
             
             
             
         if isinstance(self.model,BaseModels):
-            return np.array([self.model.predict(pd.DataFrame(x_i).T) for x_i in main_input])
+            return np.array([self.model.predict(pd.DataFrame(x_i).T,time_index[i].time()) for  i,x_i in enumerate(main_input)])
             
         if(len(self.model.input_shape)==1):
             if len(self.model.outputs)>1 :
@@ -673,15 +677,15 @@ class ModelPlots:
                       for seg,yi,predi,props,count,mean,timestamp_mean,x 
                       in zip(predSegs.segmentID,y,preds,colorList,segCounts,segment_overall_mean,current_segment_timestamp_mean,timestampLaggedX)]
             pos = yDF.columns.get_loc(t)
-            layer = self.getPredictionLayer(predSegs,colorList,folium_map,str(t),popups)
+            layer = self.getPredictionLayer(predSegs,colorList,segCounts,folium_map,str(t),popups)
             layers.append(layer)
 
         return Plotting.stackHistotyLayers([*layers,folium.TileLayer()],folium_map)
 
-    def getPredictionLayer(self,segments,colors,folium_map,name='layer',popups=[]):
+    def getPredictionLayer(self,segments,colors,counts,folium_map,name='layer',popups=[]):
         """
         create folium layer for one timestamp prediction
         """
         layer = folium.plugins.FeatureGroupSubGroup(folium_map,name=name,show=False, overlay=False)
-        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']], color=matplotlib.colors.rgb2hex(plt.cm.brg_r(color/2)),popup=pop).add_to(layer) for x,color,pop in zip(segments['loc'],colors,popups)]
+        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']],weight = count//5+1, color=matplotlib.colors.rgb2hex(plt.cm.brg_r(color/2)),popup=pop).add_to(layer) for x,color,pop,count in zip(segments['loc'],colors,popups,counts)]
         return layer
