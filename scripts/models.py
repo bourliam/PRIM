@@ -476,6 +476,7 @@ class DataCleaner:
             self.dropErroneousData()
         self.computeMergeData()
         self.fillNaWithHistoricalValues()
+        self.segments_tags = segmentsMeta[segmentsMeta.segmentID.isin(self.data.index)].set_index('segmentID').reindex(self.data.index).tag.apply(lambda x :x['highway'])
 
     def countsAvailable(self):
         return not self.counts is None
@@ -547,8 +548,9 @@ class ModelPlots:
     functions used to plot results , losses of the model
     
     """
-    def __init__(self,data_model):
+    def __init__(self,data_model, data_cleaner):
         self.data_model = data_model
+        self.data_cleaner = data_cleaner
         self.preds = data_model.getRawYData(data_model.predict('full'))
         self.y = data_model.getRawYData(data_model.y)
         
@@ -593,7 +595,7 @@ class ModelPlots:
         plt.ylabel("Speed")
         plt.axvline((self.data_model.valid_split)*self.data_model.x.shape[0],c='r')
         plt.legend(['y','pred','validationSplit'])
-        plt.title(" segment : {}".format(idx))
+        plt.title(" segment : {}, tag : {:}".format(idx,self.data_cleaner.segments_tags.iloc[idx]))
 
         
     def plotMultipleSegmentsSeries(self,ids=None):
@@ -650,7 +652,7 @@ class ModelPlots:
         plt.tight_layout()
         
         
-    def plotPredictions(self,segments, yDF,predDF, timesteps,mergedIndex,updatedcounts,folium_map=None):
+    def plotPredictions(self, yDF,predDF, timesteps,folium_map=None):
         """
         creates a map representing the error in prediction
         """
@@ -660,22 +662,24 @@ class ModelPlots:
         layers=[]
         colors = ((np.abs(yDF.clip(lower=15) - predDF.clip(lower=15))+1)/(yDF.clip(lower=15)+1)).clip(upper=1)
         laggedX = self.data_model.restoreXAsDF(self.data_model.x)
-        predSegs = segments[segments.segmentID.isin(mergedIndex[mergedIndex.isin(yDF.index)].index)]
-        segment_overall_mean = [self.data_model.data.mean(axis=1).loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+        predSegs = self.data_cleaner.segmentsMeta[self.data_cleaner.segmentsMeta.segmentID.isin(self.data_cleaner.mergedIndex[self.data_cleaner.mergedIndex.isin(yDF.index)].index)]
+        segment_tag=predSegs.tag.apply(lambda x:x['highway']).values
+        segment_overall_mean = [self.data_model.data.mean(axis=1).loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
         segment_timestamp_mean = self.data_model.data.groupby(pd.DatetimeIndex(self.data_model.data.columns).time,axis=1).mean()
-        for t in timesteps :  
-            colorList=[colors[t].loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
-            y= [yDF[t].loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
-            preds = [predDF[t].loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
-            segCounts=[updatedcounts[t].loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
-            timestampLaggedX= [laggedX[t].loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+        
+        for t in timesteps :
+            colorList=[colors[t].loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+            y= [yDF[t].loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+            preds = [predDF[t].loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+            segCounts=[self.data_cleaner.counts[t].loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+            timestampLaggedX= [laggedX[t].loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
 
-            current_segment_timestamp_mean = [segment_timestamp_mean[t.time()].loc[mergedIndex.loc[idx]] for idx in predSegs.segmentID]
+            current_segment_timestamp_mean = [segment_timestamp_mean[t.time()].loc[self.data_cleaner.mergedIndex.loc[idx]] for idx in predSegs.segmentID]
 
-            popups = ["segment : {:},<br> y : {:.2f},<br> pred : {:.2f},<br> %error : {:.0f}%,<br> count : {:}<br>mean: {:}<br>timestamp_mean: {:}<br>x: {:} "\
-                      .format(seg,yi,predi,props*100,count,mean,timestamp_mean,np.array(x).astype(int)) 
-                      for seg,yi,predi,props,count,mean,timestamp_mean,x 
-                      in zip(predSegs.segmentID,y,preds,colorList,segCounts,segment_overall_mean,current_segment_timestamp_mean,timestampLaggedX)]
+            popups = ["segment : {:},<br>tag : {:},<br> y : {:.2f},<br> pred : {:.2f},<br> %error : {:.0f}%,<br> count : {:}<br>mean: {:}<br>timestamp_mean: {:}<br>x: {:} "\
+                      .format(seg,seg_tag,yi,predi,props*100,count,mean,timestamp_mean,np.array(x).astype(int)) 
+                      for seg,seg_tag,yi,predi,props,count,mean,timestamp_mean,x 
+                      in zip(predSegs.segmentID,segment_tag,y,preds,colorList,segCounts,segment_overall_mean,current_segment_timestamp_mean,timestampLaggedX)]
             pos = yDF.columns.get_loc(t)
             layer = self.getPredictionLayer(predSegs,colorList,segCounts,folium_map,str(t),popups)
             layers.append(layer)
