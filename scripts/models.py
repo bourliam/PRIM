@@ -160,6 +160,8 @@ class DataModel:
         self.min_max_scale = min_max_scale
         self.differentiate_y=differentiate_y
         self.model=None
+        self.count_data=None
+        self.time_data=None
         self.valid_split=valid_split
         self.x,self.y,self.t =self.getXY()
         self.n_segments = len(data)
@@ -425,33 +427,57 @@ class DataModel:
         """
             
         time_index = [self.getIndexes(i)[1][0] for i in range(len(self.x))]
+                            
         
-        secondary_input = self.getDaysTypes()
         if split.lower() == "full":
             main_input = self.x
-            secondary_input = np.concatenate(secondary_input)
+            
+            if not self.count_data is None :
+                count_input = self.count_data.x
+            
+            if not self.time_data is None :
+                secondary_input = np.concatenate(self.time_data)
+            
+            
         if split.lower() == "train":
             main_input,*_ = self.trainSplit()
+            
+            if not self.count_data is None :
+                count_input,*_  = self.count_data.trainSplit()
+            
+            
+            if not self.time_data is None :
+                secondary_input=self.time_data[0]
+            
             time_index = time_index[:int(len(self.x)*(self.valid_split))]
-            secondary_input=secondary_input[0]
+            
         if split.lower() == "test":
+            
+
             *_,main_input,_ = self.trainSplit()
+            
+            if not self.count_data is None :
+                *_,count_input,_  = self.count_data.trainSplit()
+            
             time_index = time_index[int(len(self.x)*(self.valid_split)):]
-            secondary_input=secondary_input[1]
+            
+            if not self.time_data is None :
+                secondary_input=self.time_data[1]
             
             
             
         if isinstance(self.model,BaseModels):
             return np.array([self.model.predict(pd.DataFrame(x_i).T,time_index[i].time()) for  i,x_i in enumerate(main_input)])
             
-        if(len(self.model.input_shape)==1):
-            if len(self.model.outputs)>1 :
-                return self.model.predict(main_input)[0]
-        
-            return self.model.predict(main_input)
-        if len(self.model.outputs)>1 :
-            return self.model.predict([main_input, secondary_input])[0]
-        return self.model.predict([main_input, secondary_input])
+        inputs = [main_input]
+        if not self.count_data is None :
+            inputs.append(count_input)
+                    
+        if not self.time_data is None :
+            inputs.append(secondary_input)
+                
+            
+        return self.model.predict(inputs)
     
     
 class DataCleaner:
@@ -569,23 +595,30 @@ class ModelPlots:
                 plt.title(titles[i])
         plt.tight_layout()
         
-    def plotSegmentSeries(self,idx,subplot=False):
+    def plotSegmentSeries(self,idx,subplot=False,plot_error=False):
         """
         plot the series of a segment (both true and predicted values)
         """
+        
+        
         if not subplot :
             plt.figure(figsize=(30,4))
-        plt.plot(*self.data_model.getSplitSequences(
+            
+            
+        ys = self.data_model.getSplitSequences(
                                                 self.y[:,idx],
                                                 self.data_model.sequence_length-self.data_model.input_lag,
                                                 skip=self.data_model.input_lag)
-                )
-        
-        plt.plot(*self.data_model.getSplitSequences(
+        preds = self.data_model.getSplitSequences(
                                                 self.preds[:,idx],
                                                 self.data_model.sequence_length-self.data_model.input_lag,
                                                 skip=self.data_model.input_lag)
-                )
+        if plot_error :
+                plt.plot(ys[0],ys[1]-preds[1])
+        else :
+            plt.plot(*ys )
+
+            plt.plot(*preds)
         
         dates = np.array([self.data_model.getIndexes(i)[1][0] for i in range(len(self.y))])
         
@@ -594,11 +627,12 @@ class ModelPlots:
                        labels = dates[np.r_[:len(self.y)-1:30j].astype(int)],rotation='vertical');
         plt.ylabel("Speed")
         plt.axvline((self.data_model.valid_split)*self.data_model.x.shape[0],c='r')
-        plt.legend(['y','pred','validationSplit'])
+        if not plot_error :
+            plt.legend(['y','pred','validationSplit'])
         plt.title(" segment : {}, tag : {:}".format(idx,self.data_cleaner.segments_tags.iloc[idx]))
 
         
-    def plotMultipleSegmentsSeries(self,ids=None):
+    def plotMultipleSegmentsSeries(self,ids=None,plot_error=False):
         """
         plots multiple series using index in "ids" if provided else plots 20 series ordered by mean difference in  predictions
         """
@@ -608,7 +642,7 @@ class ModelPlots:
         plt.figure(figsize=(24,36))
         for ix, xSample in enumerate(ids):
             plt.subplot(len(ids),1,ix+1)
-            self.plotSegmentSeries(xSample,subplot=True)
+            self.plotSegmentSeries(xSample,subplot=True,plot_error=plot_error)
         plt.tight_layout()
         
         
