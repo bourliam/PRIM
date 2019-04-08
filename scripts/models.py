@@ -730,7 +730,11 @@ class ModelPlots:
 
 
     def cdfPlot(self,clip_value=15,error_type ="mape",label="model"):
-
+        """
+        cumulative distribution plot of the given *error_type* for the current model
+        
+        TODO : add split params for train/validation output
+        """
         if error_type.lower() == "mape":
             error = (abs(self.y.clip(clip_value) - self.preds.clip(clip_value))/(self.y.clip(clip_value))).flatten()
         if error_type.lower() =="mae":
