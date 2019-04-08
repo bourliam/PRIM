@@ -74,7 +74,7 @@ class SpeedMatrix:
 
         return main_roads
 
-    def get_speed_matrix(self, timeframe, road_ids, hour_start=17, hour_end=20):
+    def get_speed_matrix(self, timeframe, road_ids, hour_start=17, hour_end=20,minute_start = 0):
         """The function to get the speed matrix
         Arguments:
             timeframe {int} -- The length of the timeframe, ie the time between two columns.
@@ -103,11 +103,12 @@ class SpeedMatrix:
                                     "$toDate": {
 
                                         "$multiply": [
+                                            { "$add": [
                                             {"$subtract": [
                                                 {"$toLong": "$time"},
                                                 {"$mod": [
                                                     {"$toLong": "$time"}, 1 * 60 * 15]}
-                                            ]}, 1000]
+                                            ]},1*60*minute_start ] }, 1000]
 
                                     }
                                 }

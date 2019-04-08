@@ -727,3 +727,21 @@ class ModelPlots:
         layer = folium.plugins.FeatureGroupSubGroup(folium_map,name=name,show=False, overlay=False)
         [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']],weight = count//5+1, color=matplotlib.colors.rgb2hex(plt.cm.brg_r(color/2)),popup=pop).add_to(layer) for x,color,pop,count in zip(segments['loc'],colors,popups,counts)]
         return layer
+
+
+    def cdfPlot(self,clip_value=15,error_type ="mape",label="model"):
+
+        if error_type.lower() == "mape":
+            error = (abs(self.y.clip(clip_value) - self.preds.clip(clip_value))/(self.y.clip(clip_value))).flatten()
+        if error_type.lower() =="mae":
+            error = abs(self.y.clip(clip_value) - self.preds.clip(clip_value)).flatten()
+        if error_type.lower() =="mse":
+            error = ((self.y.clip(clip_value) - self.preds.clip(clip_value))**2).flatten()
+
+        error.sort()
+        idx_error=np.cumsum(np.arange(len(error)))
+        plt.plot(error,idx_error/idx_error.max(),label=label)
+        plt.ylabel("cumulative probability")
+        plt.xlabel(error_type)
+        plt.title("CDF")
+        plt.legend()
