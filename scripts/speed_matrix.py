@@ -99,16 +99,17 @@ class SpeedMatrix:
                             "_id": {
                                 "matching_road": "$matching_road",
                                 "heading": "$heading_road",
+                                "id":"$id",
                                 "time": {
                                     "$toDate": {
 
-                                        "$multiply": [
-                                            { "$add": [
+                                        "$multiply": [  
                                             {"$subtract": [
                                                 {"$toLong": "$time"},
                                                 {"$mod": [
-                                                    {"$toLong": "$time"}, 1 * 60 * 15]}
-                                            ]},1*60*minute_start ] }, 1000]
+                                                    { "$subtract": [
+                                                    {"$toLong": "$time"},1*60*minute_start ]}, 1 * 60 * 15]}
+                                            ]}, 1000]
 
                                     }
                                 }
@@ -120,6 +121,7 @@ class SpeedMatrix:
                     }], allowDiskUse=True
             ))
         )
+        return self.avg_speed
         self.avg_speed['time'] = self.avg_speed['_id'].apply(
             lambda x: x['time'])
         countsDF=self.avg_speed.pivot(index='matching_road', columns='time', values='count')

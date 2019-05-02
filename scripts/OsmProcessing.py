@@ -12,7 +12,7 @@ def reverseCoordinates(x):
 
 def getSegments(    osmWays,
                     innerBox=[[[-1.5460, 48.1656], [-1.5460, 48.0632], [-1.7626, 48.0632], [-1.7626,48.1656], [-1.5460, 48.1656]]],
-                    innerTags =["motorway", "trunk", "primary", "secondary", "tertiary", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link"],
+                    innerTags =["motorway", "trunk", "primary", "motorway_link", "trunk_link", "primary_link"],
                     outerBox=[[[-1.4460, 48.2056], [-1.4460, 48.0032], [-1.8626, 48.0032], [-1.8626,48.2056], [-1.4460, 48.2056]]],
                     outerTags= ["motorway", "trunk"]
                ):
@@ -65,6 +65,7 @@ def getSegments(    osmWays,
     segments.drop_duplicates('_id',inplace=True)
     segments.reset_index(drop=True,inplace=True)
     segments.tag=segments.tag.apply(lambda x : dict([(v['k'],v['v']) for v in x]))
+    segments=segments[segments.tag.apply(lambda x :x['highway'] ).isin(innerTags)]
     return segments.set_index('_id')
 
 
