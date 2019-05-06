@@ -154,16 +154,16 @@ class DataModel:
         self.scale_max = scale_max
         self.scale_log = scale_log
         self.shift_mean = shift_mean
-        self.y_only=y_only
+        self.y_only = y_only
         self.add_time = add_time
         self.max_value = max_value
         self.min_max_scale = min_max_scale
-        self.differentiate_y=differentiate_y
-        self.model=None
-        self.count_data=None
-        self.time_data=None
+        self.differentiate_y = differentiate_y
+        self.model = None
+        self.count_data = None
+        self.time_data = None
         self.valid_split=valid_split
-        self.x,self.y,self.t =self.getXY()
+        self.x,self.y,self.t = self.getXY()
         self.n_segments = len(data)
         self.scale_output = scale_output
         self.__reversed_process=[]
@@ -175,7 +175,7 @@ class DataModel:
         returns the types of day (monday to friday), and real value representing the time of day for each example (number of seconds/ 60*60) 
         
         """
-        day_types = pd.DatetimeIndex(self.t.reshape(-1)).weekday.values.reshape(self.t.shape)
+        day_types = pd.Series(self.t.reshape(-1)).dt.weekday.values.reshape(self.t.shape)
         time_fraction = (CustomUtils.timeToSeconds(pd.DatetimeIndex(self.t.reshape(-1)))/(60*60)).values.reshape(self.t.shape)
         time_input = np.concatenate([day_types,time_fraction],1)
         return time_input[:int(len(self.x)*(self.valid_split))],time_input[int(len(self.x)*(self.valid_split)):]
@@ -198,7 +198,7 @@ class DataModel:
         """
         create X and Y matricies out of the original speed dataFrame
         X shape : n_samples, inputLag, n_segments
-        Y shape : n_samples, outputLag, n_segments (middle dimension is dropped if output lag =1)
+        Y shape : n_samples, outputLag, n_segments (middle dimension is dropped if output lag = 1)
 
         """
         
@@ -296,7 +296,7 @@ class DataModel:
         remove time for input
         """
         if y.shape == self.x.shape :
-            return np.delete(data_model.x,data_model.x.shape[2]-1,axis=2)
+            return np.delete(self.x, self.x.shape[2]-1, axis=2)
         return y
         
     def shiftMean( self, quarterwise=False ) :
@@ -344,7 +344,7 @@ class DataModel:
         if self.scale_log :
             self.scaleLog()
 
-    def getRawYData(self,y):
+    def getRawYData(self, y):
         """
         reverse all preprocessings done on data
         """
@@ -488,7 +488,7 @@ class DataModel:
             
             
             if not self.time_data is None :
-                secondary_input=self.time_data[0]
+                secondary_input = self.time_data[0]
             
             time_index = time_index[:int(len(self.x)*(self.valid_split))]
             
@@ -498,12 +498,12 @@ class DataModel:
             *_,main_input,_ = self.trainSplit()
             
             if not self.count_data is None :
-                *_,count_input,_  = self.count_data.trainSplit()
+                *_,count_input,_ = self.count_data.trainSplit()
             
             time_index = time_index[int(len(self.x)*(self.valid_split)):]
             
             if not self.time_data is None :
-                secondary_input=self.time_data[1]
+                secondary_input = self.time_data[1]
             
             
             
@@ -579,7 +579,7 @@ class DataCleaner:
         """
         oldIdx = self.data.columns
         # splitting index form datetime to multi index (date,time)
-        idx=[pd.to_datetime(self.data.columns.values).date,pd.to_datetime(self.data.columns.values).time]
+        idx=[pd.to_datetime(self.data.columns.values).date, pd.to_datetime(self.data.columns.values).time]
         mIdx=pd.MultiIndex.from_arrays(idx,names=['day','time'])
         self.data.set_axis(mIdx,axis=1,inplace=True)
         # computing local time means
@@ -594,21 +594,21 @@ class DataCleaner:
         """
         setting mean speed and sum counts as values for merged segments
         """
-        self.mergedIndex=pd.Series(data=self.segmentsMeta.loc[self.mergeResults]['segmentID'].values,index = self.segmentsMeta['segmentID'].values)
-        self.data =self.data * self.counts
+        self.mergedIndex = pd.Series(data=self.segmentsMeta.loc[self.mergeResults]['segmentID'].values,index = self.segmentsMeta['segmentID'].values)
+        self.data = self.data * self.counts
         self.data = self.data.assign(newIndex =self.mergedIndex.reindex(self.data.index).values)
         self.data = self.data[~self.data.newIndex.isna()]
-        self.data=(self.data.groupby('newIndex').mean()*self.data.groupby('newIndex').count()).dropna(thresh = int(thresh*len(self.data.columns)))
+        self.data = (self.data.groupby('newIndex').mean()*self.data.groupby('newIndex').count()).dropna(thresh = int(thresh*len(self.data.columns)))
         self.counts = self.counts.assign(newIndex =self.mergedIndex.reindex(self.counts.index).values)
         self.counts = self.counts[~self.counts.newIndex.isna()]
         self.counts = self.counts.groupby('newIndex').sum().loc[self.data.index]
-        self.data =self.data/self.counts
+        self.data = self.data / self.counts
             
     def dropErroneousData(self):
         """
         drop some erroneous data (will probably change should be more dynamic)
         """
-        days_count =self.counts.groupby(pd.DatetimeIndex(self.data.columns).date,axis=1).sum().sum()
+        days_count = self.counts.groupby(pd.DatetimeIndex(self.data.columns).date,axis=1).sum().sum()
         days_quarter_count = pd.Series(self.data.columns.date).value_counts()
         days_index=np.intersect1d(days_count[days_count>0.75*days_count.median()].index,days_quarter_count[days_quarter_count==20].index)
         self.data=self.data[self.data.columns[[ x.date() in days_index for x  in self.data.columns]]]
@@ -689,8 +689,8 @@ class ModelPlots:
         dates = np.array([self.data_model.getIndexes(i)[1][0] for i in range(len(self.y))])
         
         if not subplot :
-            plt.xticks(ticks  = np.arange(len(self.y))[np.r_[:len(self.y)-1:30j].astype(int)],
-                       labels = dates[np.r_[:len(self.y)-1:30j].astype(int)],rotation='vertical');
+            plt.xticks(ticks = np.arange(len(self.y))[np.r_[:len(self.y)-1:30j].astype(int)],
+                       labels = dates[np.r_[:len(self.y)-1:30j].astype(int)],rotation='vertical')
         plt.ylabel("Speed")
         plt.axvline((self.data_model.valid_split)*self.data_model.x.shape[0],c='r')
         if not plot_error :
