@@ -196,10 +196,10 @@ def plotUserRegionsOfInterst(userEdges,folium_map=None,show_outliers=True):
     folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map
 
-def getLayerWithPositions(positions,colors,fmap,name='map'):
-    layer =    folium.plugins.FeatureGroupSubGroup(fmap,name=name)
+def getLayerWithPositions(positions,colors,fmap,fill_colors,name='map',**kwargs):
+    layer =    folium.plugins.FeatureGroupSubGroup(fmap,name=name,show=False)
     [folium.CircleMarker(location=positions[i][::-1],
-                                  color=matplotlib.colors.rgb2hex(colors[i])
+                                  color=matplotlib.colors.rgb2hex(colors[i]),fill_color=fill_colors[i],**kwargs
                                  ).add_to(layer) 
     for i in range(len(positions))]
     return layer
