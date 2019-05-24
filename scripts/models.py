@@ -145,7 +145,7 @@ class BaseModels:
     
 class DataModel:
     
-    def __init__(self,data, input_lag, output_lag, sequence_length,scale_max=False,scale_log=False,shift_mean=False,y_only=False,add_time=False,max_value=130,valid_split=0.8,min_max_scale=False,differentiate_y=False,scale_output = False):
+    def __init__(self,data, input_lag, output_lag, sequence_length,scale_max=False,scale_log=False,shift_mean=False,y_only=False,add_time=False,max_value=130,valid_split=0.8,min_max_scale=False,differentiate_y=False,scale_output = True,segmentWiseNormalization=False):
 
         self.data = data
         self.input_lag = input_lag
@@ -158,7 +158,8 @@ class DataModel:
         self.add_time = add_time
         self.max_value = max_value
         self.min_max_scale = min_max_scale
-        self.differentiate_y=differentiate_y
+        self.differentiate_y = differentiate_y
+        self.segmentWiseNormalization = segmentWiseNormalization
         self.model=None
         self.count_data=None
         self.time_data=None
@@ -167,10 +168,14 @@ class DataModel:
         self.n_segments = len(data)
         self.scale_output = scale_output
         self.__reversed_process=[]
+
+    def __onehot(x,size=19):
+        idx=(x-14)*4
+        ar =np.zeros((size,))
+        ar[int(idx)-1] = 1
+        return ar    
     
-    
-    
-    def getDaysTypes(self):
+    def getDaysTypes(self,onehot=False):
         """
         returns the types of day (monday to friday), and real value representing the time of day for each example (number of seconds/ 60*60) 
         
@@ -178,7 +183,12 @@ class DataModel:
         day_types = pd.DatetimeIndex(self.t.reshape(-1)).weekday.values.reshape(self.t.shape)
         time_fraction = (CustomUtils.timeToSeconds(pd.DatetimeIndex(self.t.reshape(-1)))/(60*60)).values.reshape(self.t.shape)
         time_input = np.concatenate([day_types,time_fraction],1)
-        return time_input[:int(len(self.x)*(self.valid_split))],time_input[int(len(self.x)*(self.valid_split)):]
+        train_days = time_input[:int(len(self.x)*(self.valid_split))]
+        test_days = time_input[int(len(self.x)*(self.valid_split)):]
+        
+        if onehot : 
+            return np.array(list(DataModel.__onehot(x) for x in train_days[:,1])),np.array(list(DataModel.__onehot(x) for x in test_days[:,1]))
+        return train_days,test_days
     
     def getExamples(self,sequence,hours):
         """
@@ -245,8 +255,23 @@ class DataModel:
         self.x = (self.x-self.min)/diff
         if self.scale_output:
             self.y = (self.y-self.min)/diff
-
+    def segmentWiseNormalisation(self):
         
+        self.__reversed_process.append(self.reverseSegmentWiseNormalisation)
+        
+        self.segmin =self.x[:int(len(self.x)*(self.valid_split))].min(axis=0).min(axis=0)
+        self.segmax =self.x[:int(len(self.x)*(self.valid_split))].max(axis=0).max(axis=0)
+        
+        diff = self.segmax - self.segmin
+        
+        self.x = (self.x-self.segmin)/diff
+        if self.scale_output:
+            self.y = (self.y-self.segmin)/diff
+    
+    def reverseSegmentWiseNormalisation(self,x):
+
+        return x*(self.segmax-self.segmin)+self.segmin
+    
     def reverseMinMaxScale(self,x):
         """
         reverse normalisation
@@ -296,7 +321,7 @@ class DataModel:
         remove time for input
         """
         if y.shape == self.x.shape :
-            return np.delete(data_model.x,data_model.x.shape[2]-1,axis=2)
+            return np.delete(self.x,self.x.shape[2]-1,axis=2)
         return y
         
     def shiftMean( self, quarterwise=False ) :
@@ -327,7 +352,8 @@ class DataModel:
 
         if self.differentiate_y :
             self.differentiateY()
-
+        if self.segmentWiseNormalization:
+            self.segmentWiseNormalisation()
         if self.shift_mean :
             self.shiftMean()
             
@@ -433,13 +459,17 @@ class DataModel:
             return values
         return addNans(np.arange(len(values)),sequence_length,skip), addNans(values,sequence_length,skip)
     
-    def restorePredictionsAsDF(self,preds):
+    def restorePredictionsAsDF(self,preds,split="full"):
         """
         create a data frame from predictions with time index
         Note : input is supposed to be the full (no train validation split) otherwise the time indexe will be wrong (TODO)
         """
-        
-        index = [self.getIndexes(i)[1][0] for i in range(len( preds ))]
+        if split.lower()=="test":
+            test_start=int(self.x.shape[0]*self.valid_split)
+            index = [self.getIndexes(i+test_start)[1][0] for i in range(len( preds ))]
+        else:
+            
+            index = [self.getIndexes(i)[1][0] for i in range(len( preds ))]
         
         if self.scale_output :
             
@@ -522,6 +552,8 @@ class DataModel:
         return self.model.predict(inputs)
     def getYAtStep(self,y,y_step=0):
         return y.reshape((-1,self.output_lag,self.x.shape[-1]))[:,y_step,:]
+    
+    
 class DataCleaner:
     """
     this class is used to clean data:
@@ -610,7 +642,7 @@ class DataCleaner:
         """
         days_count =self.counts.groupby(pd.DatetimeIndex(self.data.columns).date,axis=1).sum().sum()
         days_quarter_count = pd.Series(self.data.columns.date).value_counts()
-        days_index=np.intersect1d(days_count[days_count>0.75*days_count.median()].index,days_quarter_count[days_quarter_count==20].index)
+        days_index=np.intersect1d(days_count[days_count>0.75*days_count.median()].index,days_quarter_count[days_quarter_count==days_quarter_count.mode().iloc[0]].index)
         self.data=self.data[self.data.columns[[ x.date() in days_index for x  in self.data.columns]]]
         self.counts = self.counts[self.data.columns[[ x.date() in days_index for x  in self.data.columns]]]
         
@@ -624,9 +656,10 @@ class ModelPlots:
     functions used to plot results , losses of the model
     
     """
-    def __init__(self,data_model, data_cleaner,split="full",y=None,y_step=0):
+    def __init__(self,data_model, data_cleaner,split="full",y=None,y_step=0,intercept_data_model=None):
         self.data_model = data_model
         self.data_cleaner = data_cleaner
+        self.intercept_data_model=intercept_data_model
         if self.data_model.scale_output :
             self.preds = data_model.getRawYData(data_model.predict(split,y_step))
             self.y = data_model.getRawYData(data_model.getYAtStep(data_model.y,y_step))
@@ -635,7 +668,11 @@ class ModelPlots:
             self.y = data_model.getYAtStep(data_model.y,y_step)
         if not y is None:
             self.y=y
-        
+        if not self.intercept_data_model is None:
+            if split.lower()=="test": 
+                self.y += self.intercept_data_model.trainSplit()[3]
+                self.preds += self.intercept_data_model.trainSplit()[3]
+            
     def createSubPlots(self,data, pltFunc=plt.plot, figsize=(12,12),titles=None):
         """
         create sub plots using data and pltFunc
@@ -650,10 +687,28 @@ class ModelPlots:
             if type(titles)!=type(None):
                 plt.title(titles[i])
         plt.tight_layout()
-
+    
     def plotDiscreteSpeedError(self,ax,name=""):
         """
-        plots average absolute error per discrete speed
+        plots average absolute error per discrete speed 
+        """
+        error = abs((self.y -self.preds).flatten().round())
+        yys=self.y.flatten().round()
+        arsort=yys.argsort()
+        error = error[arsort]
+        yys = yys[arsort]
+        y_idx=np.unique(yys,return_index=True)[0]
+        split_idx = np.unique(yys,return_index=True)[1][1:]
+        y_mean_error=np.fromiter([np.mean(x) for x in np.split(error ,split_idx)],dtype=float)
+        plt.plot(y_idx,y_mean_error,label=name)
+        plt.xlabel("discrete speed")
+        plt.ylabel("mean absolute error")
+        plt.legend()
+        
+    def __plotDiscreteSpeedError(self,ax,name=""):
+        """
+        (deprecated) dropped in favor of faster numpy based function
+        plots average absolute error per discrete speed 
         """
         error = self.y -self.preds
         y_error_df=pd.DataFrame([self.y.flatten(),error.flatten()],index=["y","error"+"_"+name]).T
