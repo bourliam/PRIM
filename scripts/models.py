@@ -10,7 +10,7 @@ from functools import reduce
 import matplotlib
 import folium
 import Plotting
-
+import warnings
 from datetime import timedelta
 
 
@@ -452,8 +452,11 @@ class DataModel:
         """
         
         def addNans(values,sequence_length,skip):
-
-            values=values.reshape(-1,sequence_length)
+            try :
+                values=values.reshape(-1,sequence_length)
+            except ValueError:
+                warnings.warn("cannont reshape the data to sequence length (this is probably due to trying to plot train/validation data only (not implemented)) we rollback to linking sequences plot is going to be ugly", None)
+                raise
             nans=np.array([np.nan]*(values.shape[0]*(skip+1))).reshape(values.shape[0],-1)
             values = np.concatenate((values,nans),axis=1).reshape(-1)
             return values
@@ -656,7 +659,12 @@ class ModelPlots:
     functions used to plot results , losses of the model
     
     """
-    def __init__(self,data_model, data_cleaner,split="full",y=None,y_step=0,intercept_data_model=None):
+    def __init__(self,data_model, data_cleaner,split="full",y=None,preds= None, y_step=0,intercept_data_model=None):
+        
+        if not y is None and not preds is None :
+            self.y=y
+            self.preds =preds
+            return
         self.data_model = data_model
         self.data_cleaner = data_cleaner
         self.intercept_data_model=intercept_data_model
@@ -723,11 +731,19 @@ class ModelPlots:
         if not subplot :
             plt.figure(figsize=(30,4))
             
+        try :
+            ys = self.data_model.getSplitSequences(
+                                                    self.y[:,idx],
+                                                    self.data_model.sequence_length-self.data_model.input_lag-self.data_model.output_lag+1,
+                                                    skip=self.data_model.input_lag)
+        except (ValueError ,AttributeError):
+            plt.plot(self.y[:,idx] )
+            plt.plot(self.preds[:,idx])
+            return
             
-        ys = self.data_model.getSplitSequences(
-                                                self.y[:,idx],
-                                                self.data_model.sequence_length-self.data_model.input_lag-self.data_model.output_lag+1,
-                                                skip=self.data_model.input_lag)
+
+
+        
         preds = self.data_model.getSplitSequences(
                                                 self.preds[:,idx],
                                                 self.data_model.sequence_length-self.data_model.input_lag-self.data_model.output_lag+1,
@@ -758,8 +774,10 @@ class ModelPlots:
         plots multiple series using index in "ids" if provided else plots 20 series ordered by mean difference in  predictions
         """
         if ids is None : 
-            ids = np.argsort(self.data_model.y.mean(axis=0)[0]-self.data_model.predict('full').mean(axis=0))[np.r_[:self.data_model.n_segments-1:20j].astype(int)]
-
+            try :
+                ids = np.argsort(self.data_model.y.mean(axis=0)[0]-self.data_model.predict('full').mean(axis=0))[np.r_[:self.data_model.n_segments-1:20j].astype(int)]
+            except AttributeError :
+                ids = np.random.randint(0,len(self.y),10)
         plt.figure(figsize=(24,36))
         for ix, xSample in enumerate(ids):
             plt.subplot(len(ids),1,ix+1)
@@ -772,8 +790,10 @@ class ModelPlots:
         """
         density plot of rounded values of predictions and true data
         """
-        
-        train_split = int(len(self.y)*self.data_model.valid_split)
+        try :
+            train_split = int(len(self.y)*self.data_model.valid_split)
+        except AttributeError :
+            train_split = len(self.y)
         if split.lower() == 'train':
             prdsVsYDF=pd.DataFrame([self.preds[:train_split].flatten(),self.y[:train_split].flatten()],index=['pred','y'])
         
