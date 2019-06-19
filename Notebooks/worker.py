@@ -1,3 +1,8 @@
+import os
+os.environ["MKL_NUM_THREADS"] = "4" 
+os.environ["NUMEXPR_NUM_THREADS"] = "4" 
+os.environ["OMP_NUM_THREADS"] = "4" 
+
 
 import multiprocessing as mp
 
@@ -22,8 +27,8 @@ def init(X1, Y1, X2, Y2):
     
 
 def fit_lasso_double(i):
-    A_lasso_parra_1 = linear_model.LassoCV(n_jobs=10, cv=5, max_iter=10000, tol=0.001, n_alphas=15)
-    A_lasso_parra_2 = linear_model.LassoCV(n_jobs=10, cv=5, max_iter=10000, tol=0.001, n_alphas=15)
+    A_lasso_parra_1 = linear_model.LassoCV(n_jobs=4, cv=5, max_iter=10000, tol=0.001, n_alphas=15)
+    A_lasso_parra_2 = linear_model.LassoCV(n_jobs=4, cv=5, max_iter=10000, tol=0.001, n_alphas=15)
     
     A_lasso_parra_1.fit(X1_train, Y1_train[:, i])
     A_lasso_parra_2.fit(X2_train, Y2_train[:, i])
@@ -91,14 +96,17 @@ class T_optim:
 
         nSegments = X1_train.shape[1]
         
-        print("Training...")
+        nb_proc=12
+        
+        print("Training with",nb_proc,"...")
         start = time.time()
         
-        pool = mp.Pool(100, init, [X1_train, Y1_train, X2_train, Y2_train])
+        pool = mp.Pool(nb_proc, init, [X1_train, Y1_train, X2_train, Y2_train])
         
         results_double = pool.map(fit_lasso_double, range(nSegments))
         end=time.time()
         print("Training done in ", end - start, "seconds")
+        pool.close()
 
         mse=0
         for i in range(nSegments):
