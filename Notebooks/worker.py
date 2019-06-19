@@ -33,8 +33,10 @@ def fit_lasso_double(i):
 class T_optim:
 
     def __init__(self, speedDF):
+        print('worker v0.2')
         self.Z_train, self.Z_test = self.split_Z(speedDF)
         self.Ts = []
+        
 
 
     def split_Z(self, speedDF):
