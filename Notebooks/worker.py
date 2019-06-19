@@ -1,3 +1,8 @@
+import os
+os.environ["MKL_NUM_THREADS"] = "4" 
+os.environ["NUMEXPR_NUM_THREADS"] = "4" 
+os.environ["OMP_NUM_THREADS"] = "4" 
+
 
 import multiprocessing as mp
 
@@ -99,6 +104,7 @@ class T_optim:
         results_double = pool.map(fit_lasso_double, range(nSegments))
         end=time.time()
         print("Training done in ", end - start, "seconds")
+        pool.close()
 
         mse=0
         for i in range(nSegments):
