@@ -94,7 +94,7 @@ class T_optim:
 
         nSegments = X1_train.shape[1]
         
-        nb_proc=20
+        nb_proc=12
         
         print("Training with",nb_proc,"...")
         start = time.time()
