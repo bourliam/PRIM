@@ -86,9 +86,9 @@ class T_optim:
         print("------ STEP", T ,"------")
         print("--------------------\n")
         print('Splitting data')
-        X1_train, Y1_train, X2_train, Y2_train  = self.X_Y(self.Z_train, T)
+        X1_train, Y1_train, X2_train, Y2_train = self.X_Y(self.Z_train, T)
         print("Train: X1 shape:", X1_train.shape, "X2 shape:", X2_train.shape)
-        X1_test, Y1_test, X2_test, Y2_test   = self.X_Y(self.Z_test, T)
+        X1_test, Y1_test, X2_test, Y2_test = self.X_Y(self.Z_test, T)
         print("Test: X1 shape:", X1_test.shape, "X2 shape:", X2_test.shape)
         print()
 
