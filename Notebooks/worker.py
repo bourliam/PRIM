@@ -18,17 +18,24 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 
 X1_train, Y1_train, X2_train, Y2_train = None, None, None, None
+
+
+
 def init(X1, Y1, X2, Y2):
     global X1_train
     global Y1_train
     global X2_train
     global Y2_train
+    
     X1_train, Y1_train, X2_train, Y2_train = X1, Y1, X2, Y2
+
     
 
 def fit_lasso_double(i):
-    A_lasso_parra_1 = linear_model.LassoCV(n_jobs=4, cv=5, max_iter=10000, tol=0.001, n_alphas=15)
-    A_lasso_parra_2 = linear_model.LassoCV(n_jobs=4, cv=5, max_iter=10000, tol=0.001, n_alphas=15)
+    
+    A_lasso_parra_1 = linear_model.LassoCV(n_jobs=4, cv=5, max_iter=5000, tol=0.001, selection='random', n_alphas=20, fit_intercept=False, eps=0.0001)
+    A_lasso_parra_2 = linear_model.LassoCV(n_jobs=4, cv=5, max_iter=5000, tol=0.001, selection='random', n_alphas=20, fit_intercept=False, eps=0.0001)
+    
     
     A_lasso_parra_1.fit(X1_train, Y1_train[:, i])
     A_lasso_parra_2.fit(X2_train, Y2_train[:, i])
@@ -38,7 +45,7 @@ def fit_lasso_double(i):
 class T_optim:
 
     def __init__(self, speedDF):
-        print('worker v0.2')
+        print('worker v0.3')
         self.Z_train, self.Z_test = self.split_Z(speedDF)
         self.Ts = []
         
@@ -46,9 +53,11 @@ class T_optim:
 
     def split_Z(self, speedDF):
         Z = []
-
-        for i in range(int((speedDF.shape[1])/20)):
-            Z.append(speedDF.iloc[:,i*20:(i+1)*20].values)
+        
+        times_per_day = 56
+        
+        for i in range(int((speedDF.shape[1])/times_per_day)):
+            Z.append(speedDF.iloc[:,i*times_per_day:(i+1)*times_per_day].values)
 
         print("Z3 Created!")
         n = len(Z)
@@ -62,7 +71,7 @@ class T_optim:
         M = (1/45) * Z_train.sum(axis=0)
         for i in range(45):
             Z_train[i] = Z_train[i] - M
-        for i in range(65-45):
+        for i in range(61-45):
             Z_test[i] = Z_test[i] - M
 
         print("Z Centré !")
@@ -98,7 +107,7 @@ class T_optim:
         
         nb_proc=12
         
-        print("Training with",nb_proc,"...")
+        print("Training with", nb_proc,"...")
         start = time.time()
         
         pool = mp.Pool(nb_proc, init, [X1_train, Y1_train, X2_train, Y2_train])
@@ -107,19 +116,37 @@ class T_optim:
         end=time.time()
         print("Training done in ", end - start, "seconds")
         pool.close()
-
+        
+        times_per_day = 56
+        
         mse=0
         for i in range(nSegments):
             mse += T * np.mean(results_double[i][0].mse_path_[np.where(results_double[i][0].alphas_ == results_double[i][0].alpha_)[0][0]])
-            mse += (19-T) * np.mean(results_double[i][1].mse_path_[np.where(results_double[i][1].alphas_ == results_double[i][1].alpha_)[0][0]])
-        mse = mse/(19*nSegments)
+            mse += ((times_per_day-1)-T) * np.mean(results_double[i][1].mse_path_[np.where(results_double[i][1].alphas_ == results_double[i][1].alpha_)[0][0]])
+        mse = mse/((times_per_day-1)*nSegments)
 
         print('MSE:', mse)
-
-        return mse
+        
+        
+        alphas = [] 
+        
+        for i in range(nSegments):
+            alphas.append([results_double[i][0].alpha_,results_double[i][1].alpha_])   #alpha[i][0] = alpha pour la premiere periode pour la section i
+        alphas = np.array(alphas)
+        return mse, alphas
 
 
     def run(self):
-        self.Ts = []
-        for t in range(1,18):
-            self.Ts.append(self.one_step(t))
+        self.Ts = np.array([])
+        self.all_alphas = np.array([])
+        times = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 52, 53, 54]
+        for t in times:
+            mse, alphas = self.one_step(t)
+            self.Ts = np.append(self.Ts, mse)
+            self.all_alphas = np.append(self.all_alphas, alphas)
+            np.savetxt('alphas_per_T_new2.txt', self.all_alphas)
+
+        
+        print("DONE")
+        print("T's", times)
+        print("Scores:", self.Ts)
