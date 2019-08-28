@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from   functools import reduce
 import sys
 import seaborn as sns
+import pytz
 class ModelCompare:
     
     """
@@ -15,16 +16,14 @@ class ModelCompare:
         models_predictions is a dictionary model_name: predictiond dataframe
         true_values is the truth dataframe
         """
-
+        self.fontsize= 10
         self.models_predictions = models_predictions
         
         self.markers=dict(zip(self.models_predictions.keys(),[  '->',
-                        ':,',
                         ':o',
                         ':v',
                         ':^',
                         ':<',
-                        
                         ':s',
                         ':p',
                         ':*',
@@ -57,7 +56,8 @@ class ModelCompare:
             print("shape used is the intersection of all columns")
         
             self.time_index = reduce(np.intersect1d, [df.columns for df in self.models_predictions.values()])
-            self.time_index = np.intersect1d(self.time_index,pd.to_datetime(self.true_values.columns))
+            self.time_index = np.intersect1d(self.time_index,self.true_values.columns)
+            self.time_index = pd.to_datetime(self.time_index).tz_localize("utc").tz_convert(pytz.timezone("Europe/Paris"))
             print(self.time_index.shape)
         if not user_time_index is None :
             self.time_index = user_time_index
@@ -101,12 +101,12 @@ class ModelCompare:
             
             plt.plot(y_idx,y_mean_error,self.markers[model_name],label=model_name)
             
-        plt.xlabel(xlabel)
-        plt.ylabel("mean absolute error")
+        plt.xlabel(xlabel,fontsize=self.fontsize)
+        plt.ylabel("mean absolute error",fontsize=self.fontsize)
         plt.legend(loc=2)
         plt.twinx(plt.gca())
         (self.true_values[self.time_index] + intercept).round().stack().value_counts().sort_index().plot(label="counts",style='k:',grid=False)
-        plt.ylabel("counts");
+        plt.ylabel("counts",fontsize=self.fontsize);
 
         plt.legend(loc=1)
         
@@ -115,6 +115,7 @@ class ModelCompare:
         for model_name, model_data in self.models_predictions.items() :
             preds = model_data[self.time_index]
             true = self.true_values[self.time_index]
+
             results.append({
                                 'model_name':model_name,
                                 'mse':self.mse(preds.values.flatten(),true.values.flatten()),
@@ -131,8 +132,8 @@ class ModelCompare:
             error = abs(preds - true).groupby(pd.to_datetime(self.time_index).time,axis=1).agg(np.mean).mean()
             plt.plot(error.values,self.markers[model_name],label=model_name)
             plt.xticks(range(len(error.index)),error.index,rotation=90)
-        plt.ylabel("mean absolute error")
-        plt.xlabel("time")
+        plt.ylabel("mean absolute error",fontsize=self.fontsize)
+        plt.xlabel("time",fontsize=self.fontsize)
 
         plt.legend()
 
@@ -158,13 +159,55 @@ class ModelCompare:
                 plt.xticks(xPos,labels=true.mean().index[xPos],rotation=90)
             preds = model_data[self.time_index]+intercept
             plt.plot(preds.mean().values,self.markers[model_name],label=model_name)
-            plt.xlabel("time")
-            plt.ylabel("speed")
+            plt.xlabel("time",fontsize=self.fontsize)
+            plt.ylabel("speed",fontsize=self.fontsize)
             plt.legend()
 
         plt.tight_layout()
         plt.legend()
 
+
+    def sample_predictions(self,seg_ids=None,day_ids =None,intercept=0):
+        if not type(intercept) is int :
+            intercept = intercept[self.time_index]
+            if not self.segments_index is None :
+                intercept = intercept.loc[self.segments_index].copy()
+                
+        true = self.true_values[self.time_index]
+
+
+        if seg_ids is None : 
+            seg_ids=true.index[np.random.randint(0,556,5)]
+        if day_ids is None : 
+            day_ids = np.unique(pd.to_datetime(true.columns).date)[-2:]
+            
+
+        for i,seg_i in enumerate(seg_ids):
+
+            for j,day_i in enumerate(day_ids):
+
+                plt.subplot(len(seg_ids),len(day_ids),i*len(day_ids)+j+1)
+
+                time_ids  = true.columns[pd.Series(true.columns).dt.date.isin([day_i]).values]
+                true_vals = true+intercept
+                
+#                 return true_vals
+                true_vals= true_vals.loc[seg_i][time_ids]
+                plt.fill_between(range(len(true_vals)),true_vals+7,true_vals-7,alpha = 0.5,color='red')    
+                plt.plot(true_vals.values,label="True")
+                
+                for model_name, model_data in self.models_predictions.items() :
+                    model_vals = (model_data+intercept).loc[seg_i][time_ids]
+                    plt.plot(model_vals.values,label = model_name)
+
+                myslice=slice(None,None,2)
+                plt.xticks(np.arange(len(true_vals))[myslice],pd.Series(true_vals.index).dt.time.astype(str).values[myslice],rotation=90)
+
+                plt.legend(ncol=6)
+
+        
+        
+        
         
     def plotErrorHistogram(self,intercept =0,subplot=True,bins=40):
         subplot_idx=1
@@ -181,8 +224,8 @@ class ModelCompare:
                 subplot_idx+=1
             preds =(model_data[self.time_index]+intercept).values.flatten()
             plt.hist2d(preds,true,self.markers[model_name],label=model_name,bins=bins)
-            plt.xlabel("error")
-            plt.ylabel("true")
+            plt.xlabel("error",fontsize=self.fontsize)
+            plt.ylabel("true",fontsize=self.fontsize)
             plt.legend()
             plt.title(model_name)
         plt.tight_layout()
@@ -202,8 +245,8 @@ class ModelCompare:
                 plt.xticks(xPos,labels=true.mean().index[xPos],rotation=90)
             error = model_data[self.time_index]-true
             plt.plot(gaussian_filter1d(error.mean().values,sigma=smooth_sigma),self.markers[model_name],label=model_name)
-            plt.xlabel("time")
-            plt.ylabel("average error")
+            plt.xlabel("time",fontsize=self.fontsize)
+            plt.ylabel("average error",fontsize=self.fontsize)
             plt.legend()
 
         plt.tight_layout()
@@ -224,8 +267,8 @@ class ModelCompare:
             preds.sort()
             
             plt.plot(np.fromiter([np.mean(x) for x in np.split(preds,np.r_[:len(preds):100j].astype(int)[1:-1])],dtype=float),self.markers[model_name],label=model_name)
-            plt.xlabel("time")
-            plt.ylabel("error")
+            plt.xlabel("time",fontsize=self.fontsize)
+            plt.ylabel("error",fontsize=self.fontsize)
             plt.legend()
 
         plt.tight_layout()
@@ -257,8 +300,8 @@ class ModelCompare:
             plt.axvline(0.5,c="red",label="0.5")
             plt.axvline(0.25,c="green",label="0.25")
             plt.axvline(0.15,c="pink",label="0.15")
-        plt.ylabel("cumulative probability")
-        plt.xlabel(error_type)
+        plt.ylabel("cumulative probability",fontsize=self.fontsize)
+        plt.xlabel(error_type,fontsize=self.fontsize)
         plt.title("CDF")
         plt.legend()
         
@@ -285,8 +328,8 @@ class ModelCompare:
             
             plt.plot(true[true_arg_sort],gaussian_filter1d(preds[true_arg_sort],sigma=smooth_sigma),self.markers[model_name], label=model_name)
             
-            plt.xlabel("True")
-            plt.ylabel("preds")
+            plt.xlabel("True",fontsize=self.fontsize)
+            plt.ylabel("preds",fontsize=self.fontsize)
             plt.legend()
 
         plt.tight_layout()
@@ -318,8 +361,8 @@ class ModelCompare:
             preds = model_data[self.time_index]+intercept-true.shift(axis=1) 
             preds=preds[new_index]
             plt.plot(preds.mean().values,self.markers[model_name],label=model_name)
-            plt.xlabel("time")
-            plt.ylabel("error")
+            plt.xlabel("time",fontsize=self.fontsize)
+            plt.ylabel("error",fontsize=self.fontsize)
             plt.legend()
 
         plt.tight_layout()
@@ -341,8 +384,8 @@ class ModelCompare:
             else :
                 plt.plot(gaussian_filter1d(abs(preds-true).mean(axis=1).reindex(std_sorted_idx).values,sigma=smooth_sigma),self.markers[model_name],label=model_name)
             plt.legend()
-        plt.ylabel("mean absolute error")
-        plt.xlabel("segments")
+        plt.ylabel("mean absolute error",fontsize=self.fontsize)
+        plt.xlabel("segments",fontsize=self.fontsize)
         smooth_label = "" if smooth_sigma==0 else "smoothed"
         plt.title("mean absoulute error for each segment (ordered by standard deviation)"+smooth_label)
         
@@ -353,8 +396,8 @@ class ModelCompare:
             error = abs(preds - true).groupby(pd.to_datetime(self.time_index).date,axis=1).agg(np.mean).mean()
             plt.plot(error.values,self.markers[model_name],label=model_name)
             plt.xticks(range(len(error.index)),error.index,rotation=90)
-        plt.ylabel("mean absolute error")
-        plt.xlabel("dates")
+        plt.ylabel("mean absolute error",fontsize=self.fontsize)
+        plt.xlabel("dates",fontsize=self.fontsize)
 
         plt.legend()
 
@@ -389,8 +432,8 @@ class ModelCompare:
             plt.xticks(rotation=90)
 
 #             plt.xticks(range(len(error.index)),error.index,rotation=90)
-        plt.ylabel("mean absolute error")
-        plt.xlabel("time")
+        plt.ylabel("mean absolute error",fontsize=self.fontsize)
+        plt.xlabel("time",fontsize=self.fontsize)
         
         plt.legend()
         
