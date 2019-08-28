@@ -82,25 +82,33 @@ class BaseModels:
         print('Train data shape:', train.shape)
         
         print('\nFilling the voids...')
-        delta = timedelta(minutes=15)
+        minutes_interval=str(int((updatedSpeeds.columns[1]-updatedSpeeds.columns[0]).total_seconds()/60))
 
-        train_filled = train[:,0].reshape(-1,1)
-        train_dates_filled=[train_dates[0]]
-        for i in range(1, len(train_dates)):
-            while train_dates_filled[-1] + delta != train_dates[i]:
-                train_dates_filled.append(train_dates_filled[-1] + delta)
-                train_filled = np.concatenate((train_filled, np.zeros((train_filled.shape[0],1))), axis=1)
+        delta = datetime.timedelta(microseconds=(updatedSpeeds.columns[1]-updatedSpeeds.columns[0]).value//1000)
+        
+#         train_filled = train[:,0].reshape(-1,1)
+#         train_dates_filled=[train_dates[0]]
+#         for i in range(1, len(train_dates)):
+#             while train_dates_filled[-1] + delta != train_dates[i]:
+#                 train_dates_filled.append(train_dates_filled[-1] + delta)
+#                 train_filled = np.concatenate((train_filled, np.zeros((train_filled.shape[0],1))), axis=1)
                 
-            train_filled = np.concatenate((train_filled, train[:,i].reshape(-1,1)), axis=1)
-            train_dates_filled.append(train_dates[i])
+#             train_filled = np.concatenate((train_filled, train[:,i].reshape(-1,1)), axis=1)
+#             train_dates_filled.append(train_dates[i])
             
-        train_dates_filled = np.array(train_dates_filled)
-        print('Filling done. New train data shape:', train_filled.shape)
-
+#         train_dates_filled = np.array(train_dates_filled)
+        
+        
+#         print('Filling done. New train data shape:', train_filled.shape)
+        stretchedDF=pd.DataFrame(index = updatedSpeeds.index,columns=pd.to_datetime(pd.date_range(updatedSpeeds.columns[0],updatedSpeeds.columns[-1],freq="0.25H")))
+        stretchedDF.update(updatedSpeeds)
+        stretchedDF=stretchedDF.fillna(0)
         print('\nTraining the models...')
         
         print('Params: max_lag:', self.lag)
-        models = [smt.AR(train_filled[i], dates=train_dates_filled, freq='15min').fit(maxlag=self.lag, trend='c') for i in range(train_filled.shape[0]) ]
+        
+
+        models = [smt.AR(stretchedDF.values[i], dates=stretchedDF.columns, freq=minutes_interval+'min').fit(maxlag=self.lag, trend='c') for i in range(stretchedDF.shape[0]) ]
         print('\nTraining finished !')
 
         return models
@@ -160,9 +168,9 @@ class DataModel:
         self.min_max_scale = min_max_scale
         self.differentiate_y = differentiate_y
         self.segmentWiseNormalization = segmentWiseNormalization
-        self.model=None
-        self.count_data=None
-        self.time_data=None
+        self.models=None
+        self.count_data =None
+        self.time_data  =None
         self.valid_split=valid_split
         if (len(data.columns)/sequence_length)<10 : 
             self.split_idx=(int((valid_split)*(len(data.columns)-input_lag)))
@@ -171,7 +179,7 @@ class DataModel:
             
             
         
-        self.x,self.y,self.t =self.getXY()
+        self.x,self.y,self.t = self.getXY()
         self.n_segments = len(data)
         self.scale_output = scale_output
         self.__reversed_process=[]
@@ -184,8 +192,7 @@ class DataModel:
     
     def getDaysTypes(self,onehot=False):
         """
-        returns the types of day (monday to friday), and real value representing the time of day for each example (number of seconds/ 60*60) 
-        
+        returns the types of day (monday to friday), and real value representing the time of day for each example (number of seconds/ 60*60)
         """
         day_types = pd.DatetimeIndex(self.t.reshape(-1)).weekday.values.reshape(self.t.shape)
         time_fraction = (CustomUtils.timeToSeconds(pd.DatetimeIndex(self.t.reshape(-1)))/(60*60)).values.reshape(self.t.shape)
