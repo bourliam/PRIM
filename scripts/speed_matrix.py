@@ -108,7 +108,7 @@ class SpeedMatrix:
                                                 {"$toLong": "$time"},
                                                 {"$mod": [
                                                     { "$subtract": [
-                                                    {"$toLong": "$time"},1*60*minute_start ]}, 1 * 60 * 15]}
+                                                    {"$toLong": "$time"},1*60*minute_start ]}, 1 * 60 * timeframe]}
                                             ]}, 1000]
 
                                     }

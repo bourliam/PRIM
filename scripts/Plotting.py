@@ -196,15 +196,15 @@ def plotUserRegionsOfInterst(userEdges,folium_map=None,show_outliers=True):
     folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map
 
-def getLayerWithPositions(positions,colors,fmap,name='map'):
-    layer =    folium.plugins.FeatureGroupSubGroup(fmap,name=name)
+def getLayerWithPositions(positions,colors,fmap,fill_colors,name='map',**kwargs):
+    layer =    folium.plugins.FeatureGroupSubGroup(fmap,name=name,show=False)
     [folium.CircleMarker(location=positions[i][::-1],
-                                  color=matplotlib.colors.rgb2hex(colors[i])
+                                  color=matplotlib.colors.rgb2hex(colors[i]),fill_color=fill_colors[i],**kwargs
                                  ).add_to(layer) 
     for i in range(len(positions))]
     return layer
 
-def plotRoads(roads,inverseIndexes=None,colors=None,fmap=None,name="layer",headTail=None):
+def plotRoads(roads,inverseIndexes=None,colors=None,fmap=None,name="layer",headTail=None,plot_head_tail=False,weight=3):
     """
     plot roads with colors
     
@@ -216,17 +216,18 @@ def plotRoads(roads,inverseIndexes=None,colors=None,fmap=None,name="layer",headT
     """
     folium_map = folium.plugins.FeatureGroupSubGroup(fmap,name=name,show=False)
     
-    dashed = ["6,3"if x==1 else None for x in roads['oneWay'] ]
+    dashed = ["6,3" if x==1 else None for x in roads['oneWay'] ]
     if type(colors)==type(None) :
         print(roads['loc'].shape,roads.index.values.shape,len(dashed))
-        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']], popup = str(idx),dash_array=d).add_to(folium_map) for x,idx,d in zip(roads['loc'],roads.index.values,dashed)]
+        [folium.PolyLine(weight=weight,locations=[lo[::-1] for lo in x['coordinates']], popup = str(idx),dash_array=d).add_to(folium_map) for x,idx,d in zip(roads['loc'],roads.index.values,dashed)]
     else : 
-        [folium.PolyLine(locations=[lo[::-1] for lo in x['coordinates']], color=color,popup=str(idx)+"/"+str(gdx),dash_array=d).add_to(folium_map) for x,color,idx,gdx,d in zip(roads['loc'],colors,roads.segmentID.values,inverseIndexes,dashed)]
-        if type(headTail)==type(None):
-            [folium.CircleMarker(location=lo[::-1] ,radius =2).add_to(folium_map) for lo in roads['loc'].apply(lambda x: x['coordinates'][0]) ]
-            [folium.CircleMarker(location=lo[::-1] ,radius =1,color='red').add_to(folium_map) for lo in roads['loc'].apply(lambda x: x['coordinates'][-1]) ]
-        else :
-            [folium.CircleMarker(location=lo[::-1] ,radius =1,color='red').add_to(folium_map) for lo in headTail]
+        [folium.PolyLine(weight=weight,locations=[lo[::-1] for lo in x['coordinates']], color=color,popup=str(idx)+"/"+str(gdx),dash_array=d).add_to(folium_map) for x,color,idx,gdx,d in zip(roads['loc'],colors,roads.segmentID.values,inverseIndexes,dashed)]
+        if plot_head_tail : 
+            if type(headTail)==type(None):
+                [folium.CircleMarker(location=lo[::-1] ,radius =2).add_to(folium_map) for lo in roads['loc'].apply(lambda x: x['coordinates'][0]) ]
+                [folium.CircleMarker(location=lo[::-1] ,radius =1,color='red').add_to(folium_map) for lo in roads['loc'].apply(lambda x: x['coordinates'][-1]) ]
+            else :
+                [folium.CircleMarker(location=lo[::-1] ,radius =1,color='red').add_to(folium_map) for lo in headTail]
     return folium_map
 
 def stackHistotyLayers(layers,fmap):

@@ -191,7 +191,8 @@ def getAdjacencyMatrix(segmentsMeta):
     insDF=insDF.set_index(["idx1","idx2"]).assign(vals=1)
     acc=acc.join(insDF,how='outer',lsuffix="l").assign(val=1).drop(['valsl','vals'],axis=1)
     acc = acc.unstack()
-    return  acc.add(acc.T.values,fill_value=0)
+    return acc
+#     return  acc.add(acc.T.values,fill_value=0)
 
 def addLevel(adjacency_matrix,lvl=1):
     """

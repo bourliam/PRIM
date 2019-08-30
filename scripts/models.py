@@ -10,7 +10,7 @@ from functools import reduce
 import matplotlib
 import folium
 import Plotting
-
+import warnings
 from datetime import timedelta
 
 
@@ -82,25 +82,33 @@ class BaseModels:
         print('Train data shape:', train.shape)
         
         print('\nFilling the voids...')
-        delta = timedelta(minutes=15)
+        minutes_interval=str(int((updatedSpeeds.columns[1]-updatedSpeeds.columns[0]).total_seconds()/60))
 
-        train_filled = train[:,0].reshape(-1,1)
-        train_dates_filled=[train_dates[0]]
-        for i in range(1, len(train_dates)):
-            while train_dates_filled[-1] + delta != train_dates[i]:
-                train_dates_filled.append(train_dates_filled[-1] + delta)
-                train_filled = np.concatenate((train_filled, np.zeros((train_filled.shape[0],1))), axis=1)
+        delta = datetime.timedelta(microseconds=(updatedSpeeds.columns[1]-updatedSpeeds.columns[0]).value//1000)
+        
+#         train_filled = train[:,0].reshape(-1,1)
+#         train_dates_filled=[train_dates[0]]
+#         for i in range(1, len(train_dates)):
+#             while train_dates_filled[-1] + delta != train_dates[i]:
+#                 train_dates_filled.append(train_dates_filled[-1] + delta)
+#                 train_filled = np.concatenate((train_filled, np.zeros((train_filled.shape[0],1))), axis=1)
                 
-            train_filled = np.concatenate((train_filled, train[:,i].reshape(-1,1)), axis=1)
-            train_dates_filled.append(train_dates[i])
+#             train_filled = np.concatenate((train_filled, train[:,i].reshape(-1,1)), axis=1)
+#             train_dates_filled.append(train_dates[i])
             
-        train_dates_filled = np.array(train_dates_filled)
-        print('Filling done. New train data shape:', train_filled.shape)
-
+#         train_dates_filled = np.array(train_dates_filled)
+        
+        
+#         print('Filling done. New train data shape:', train_filled.shape)
+        stretchedDF=pd.DataFrame(index = updatedSpeeds.index,columns=pd.to_datetime(pd.date_range(updatedSpeeds.columns[0],updatedSpeeds.columns[-1],freq="0.25H")))
+        stretchedDF.update(updatedSpeeds)
+        stretchedDF=stretchedDF.fillna(0)
         print('\nTraining the models...')
         
         print('Params: max_lag:', self.lag)
-        models = [smt.AR(train_filled[i], dates=train_dates_filled, freq='15min').fit(maxlag=self.lag, trend='c') for i in range(train_filled.shape[0]) ]
+        
+
+        models = [smt.AR(stretchedDF.values[i], dates=stretchedDF.columns, freq=minutes_interval+'min').fit(maxlag=self.lag, trend='c') for i in range(stretchedDF.shape[0]) ]
         print('\nTraining finished !')
 
         return models
@@ -145,8 +153,8 @@ class BaseModels:
     
 class DataModel:
     
-    def __init__(self,data, input_lag, output_lag, sequence_length,scale_max=False,scale_log=False,shift_mean=False,y_only=False,add_time=False,max_value=130,valid_split=0.8,min_max_scale=False,differentiate_y=False,scale_output = False):
-
+    def __init__(self,data, input_lag, output_lag, sequence_length,scale_max=False,scale_log=False,shift_mean=False,y_only=False,add_time=False,max_value=130,valid_split=0.7,min_max_scale=False,differentiate_y=False,scale_output = True,segmentWiseNormalization=False,name="model_name"):
+        self.name=name
         self.data = data
         self.input_lag = input_lag
         self.output_lag = output_lag
@@ -159,26 +167,43 @@ class DataModel:
         self.max_value = max_value
         self.min_max_scale = min_max_scale
         self.differentiate_y = differentiate_y
-        self.model = None
-        self.count_data = None
-        self.time_data = None
+        self.segmentWiseNormalization = segmentWiseNormalization
+        self.models=None
+        self.count_data =None
+        self.time_data  =None
         self.valid_split=valid_split
+        if (len(data.columns)/sequence_length)<10 : 
+            self.split_idx=(int((valid_split)*(len(data.columns)-input_lag)))
+        else : 
+            self.split_idx= (int((valid_split)*(len(data.columns)/sequence_length)))*(sequence_length-input_lag)
+            
+            
+        
+
         self.x,self.y,self.t = self.getXY()
         self.n_segments = len(data)
         self.scale_output = scale_output
         self.__reversed_process=[]
+
+    def __onehot(x,size=19):
+        idx=(x-14)*4
+        ar =np.zeros((size,))
+        ar[int(idx)-1] = 1
+        return ar    
     
-    
-    
-    def getDaysTypes(self):
+    def getDaysTypes(self,onehot=False):
         """
-        returns the types of day (monday to friday), and real value representing the time of day for each example (number of seconds/ 60*60) 
-        
+        returns the types of day (monday to friday), and real value representing the time of day for each example (number of seconds/ 60*60)
         """
         day_types = pd.Series(self.t.reshape(-1)).dt.weekday.values.reshape(self.t.shape)
         time_fraction = (CustomUtils.timeToSeconds(pd.DatetimeIndex(self.t.reshape(-1)))/(60*60)).values.reshape(self.t.shape)
         time_input = np.concatenate([day_types,time_fraction],1)
-        return time_input[:int(len(self.x)*(self.valid_split))],time_input[int(len(self.x)*(self.valid_split)):]
+        train_days = time_input[:self.split_idx]
+        test_days = time_input[self.split_idx:]
+        
+        if onehot : 
+            return np.array(list(DataModel.__onehot(x,self.sequence_length) for x in train_days[:,1])),np.array(list(DataModel.__onehot(x,self.sequence_length) for x in test_days[:,1]))
+        return train_days,test_days
     
     def getExamples(self,sequence,hours):
         """
@@ -239,14 +264,29 @@ class DataModel:
         """
         
         self.__reversed_process.append(self.reverseMinMaxScale)
-        self.min =self.x[:int(len(self.x)*(self.valid_split))].min()
-        self.max =self.x[:int(len(self.x)*(self.valid_split))].max()
+        self.min =self.x[:self.split_idx].min()
+        self.max =self.x[:self.split_idx].max()
         diff = self.max - self.min
         self.x = (self.x-self.min)/diff
         if self.scale_output:
             self.y = (self.y-self.min)/diff
-
+    def segmentWiseNormalisation(self):
         
+        self.__reversed_process.append(self.reverseSegmentWiseNormalisation)
+        
+        self.segmin =self.x[:self.split_idx].min(axis=0).min(axis=0)
+        self.segmax =self.x[:self.split_idx].max(axis=0).max(axis=0)
+        
+        diff = self.segmax - self.segmin
+        
+        self.x = (self.x-self.segmin)/diff
+        if self.scale_output:
+            self.y = (self.y-self.segmin)/diff
+    
+    def reverseSegmentWiseNormalisation(self,x):
+
+        return x*(self.segmax-self.segmin)+self.segmin
+    
     def reverseMinMaxScale(self,x):
         """
         reverse normalisation
@@ -278,7 +318,7 @@ class DataModel:
         reverse the log scale
         """
         x_len = y.shape[0]
-        if( x_len == int(self.valid_split*self.__lastx.shape[0]) or x_len == self.__lastx.shape[0]):
+        if( x_len == self.split_idx or x_len == self.__lastx.shape[0]):
             
             return np.expm1(y) *self.__lastx[:x_len]
         else :
@@ -304,7 +344,7 @@ class DataModel:
         Compute local time mean on train data and substract it from all data
         """
         self.__reversed_process.append(self.resetMean)
-        self.means  =  self.data[self.data.columns[:(int(len(self.data.columns)*self.valid_split))]].mean(axis=1).values
+        self.means  =  self.data[self.data.columns[:(int((valid_split)*(len(data.columns)/sequence_length)))*sequence_length]].mean(axis=1).values
         
         self.x-=self.means
         
@@ -327,7 +367,8 @@ class DataModel:
 
         if self.differentiate_y :
             self.differentiateY()
-
+        if self.segmentWiseNormalization:
+            self.segmentWiseNormalisation()
         if self.shift_mean :
             self.shiftMean()
             
@@ -413,10 +454,10 @@ class DataModel:
         split data into train, validation sets (using valid_split attribute)
         """
         
-        x_train = self.x[:int(len(self.x)*(self.valid_split))]
-        x_test = self.x[int(len(self.x)*(self.valid_split)):]
-        y_train = self.y[:int(len(self.x)*(self.valid_split))]
-        y_test = self.y[int(len(self.x)*(self.valid_split)):]
+        x_train = self.x[:self.split_idx]
+        x_test = self.x[self.split_idx:]
+        y_train = self.y[:self.split_idx]
+        y_test = self.y[self.split_idx:]
         return x_train,y_train,x_test,y_test
     
     def getSplitSequences(self,values,sequence_length,skip=0):
@@ -426,20 +467,27 @@ class DataModel:
         """
         
         def addNans(values,sequence_length,skip):
-
-            values=values.reshape(-1,sequence_length)
+            try :
+                values=values.reshape(-1,sequence_length)
+            except ValueError:
+                warnings.warn("cannont reshape the data to sequence length (this is probably due to trying to plot train/validation data only (not implemented)) we rollback to linking sequences plot is going to be ugly", None)
+                raise
             nans=np.array([np.nan]*(values.shape[0]*(skip+1))).reshape(values.shape[0],-1)
             values = np.concatenate((values,nans),axis=1).reshape(-1)
             return values
         return addNans(np.arange(len(values)),sequence_length,skip), addNans(values,sequence_length,skip)
     
-    def restorePredictionsAsDF(self,preds):
+    def restorePredictionsAsDF(self,preds,split="full"):
         """
         create a data frame from predictions with time index
         Note : input is supposed to be the full (no train validation split) otherwise the time indexe will be wrong (TODO)
         """
-        
-        index = [self.getIndexes(i)[1][0] for i in range(len( preds ))]
+        if split.lower()=="test":
+            test_start=self.split_idx
+            index = [self.getIndexes(i+test_start)[1][0] for i in range(len( preds ))]
+        else:
+            
+            index = [self.getIndexes(i)[1][0] for i in range(len( preds ))]
         
         if self.scale_output :
             
@@ -461,7 +509,7 @@ class DataModel:
         
         return df.T
     
-    def predict(self,split="full",y_step=0):
+    def predict(self,split="full",y_step=0,x=None):
         
         """
         make prediction on the data using the stored model (baseline or lstm for now)
@@ -469,7 +517,10 @@ class DataModel:
             
         time_index = [self.getIndexes(i)[1][0] for i in range(len(self.x))]
                             
-        
+        if split.lower() == "custom":
+            if not x is None :
+                main_input = x
+                
         if split.lower() == "full":
             main_input = self.x
             
@@ -490,7 +541,7 @@ class DataModel:
             if not self.time_data is None :
                 secondary_input = self.time_data[0]
             
-            time_index = time_index[:int(len(self.x)*(self.valid_split))]
+            time_index = time_index[:self.split_idx]
             
         if split.lower() == "test":
             
@@ -500,7 +551,7 @@ class DataModel:
             if not self.count_data is None :
                 *_,count_input,_ = self.count_data.trainSplit()
             
-            time_index = time_index[int(len(self.x)*(self.valid_split)):]
+            time_index = time_index[self.split_idx:]
             
             if not self.time_data is None :
                 secondary_input = self.time_data[1]
@@ -522,6 +573,8 @@ class DataModel:
         return self.model.predict(inputs)
     def getYAtStep(self,y,y_step=0):
         return y.reshape((-1,self.output_lag,self.x.shape[-1]))[:,y_step,:]
+    
+    
 class DataCleaner:
     """
     this class is used to clean data:
@@ -610,7 +663,7 @@ class DataCleaner:
         """
         days_count = self.counts.groupby(pd.DatetimeIndex(self.data.columns).date,axis=1).sum().sum()
         days_quarter_count = pd.Series(self.data.columns.date).value_counts()
-        days_index=np.intersect1d(days_count[days_count>0.75*days_count.median()].index,days_quarter_count[days_quarter_count==20].index)
+        days_index=np.intersect1d(days_count[days_count>0.75*days_count.median()].index,days_quarter_count[days_quarter_count==days_quarter_count.mode().iloc[0]].index)
         self.data=self.data[self.data.columns[[ x.date() in days_index for x  in self.data.columns]]]
         self.counts = self.counts[self.data.columns[[ x.date() in days_index for x  in self.data.columns]]]
         
@@ -624,9 +677,15 @@ class ModelPlots:
     functions used to plot results , losses of the model
     
     """
-    def __init__(self,data_model, data_cleaner,split="full",y=None,y_step=0):
+    def __init__(self,data_model, data_cleaner,split="full",y=None,preds= None, y_step=0,intercept_data_model=None):
+        
+        if not y is None and not preds is None :
+            self.y=y
+            self.preds =preds
+            return
         self.data_model = data_model
         self.data_cleaner = data_cleaner
+        self.intercept_data_model=intercept_data_model
         if self.data_model.scale_output :
             self.preds = data_model.getRawYData(data_model.predict(split,y_step))
             self.y = data_model.getRawYData(data_model.getYAtStep(data_model.y,y_step))
@@ -635,7 +694,11 @@ class ModelPlots:
             self.y = data_model.getYAtStep(data_model.y,y_step)
         if not y is None:
             self.y=y
-        
+        if not self.intercept_data_model is None:
+            if split.lower()=="test": 
+                self.y += self.intercept_data_model.trainSplit()[3]
+                self.preds += self.intercept_data_model.trainSplit()[3]
+            
     def createSubPlots(self,data, pltFunc=plt.plot, figsize=(12,12),titles=None):
         """
         create sub plots using data and pltFunc
@@ -650,10 +713,28 @@ class ModelPlots:
             if type(titles)!=type(None):
                 plt.title(titles[i])
         plt.tight_layout()
-
+    
     def plotDiscreteSpeedError(self,ax,name=""):
         """
-        plots average absolute error per discrete speed
+        plots average absolute error per discrete speed 
+        """
+        error = abs((self.y -self.preds).flatten().round())
+        yys=self.y.flatten().round()
+        arsort=yys.argsort()
+        error = error[arsort]
+        yys = yys[arsort]
+        y_idx=np.unique(yys,return_index=True)[0]
+        split_idx = np.unique(yys,return_index=True)[1][1:]
+        y_mean_error=np.fromiter([np.mean(x) for x in np.split(error ,split_idx)],dtype=float)
+        plt.plot(y_idx,y_mean_error,label=name)
+        plt.xlabel("discrete speed")
+        plt.ylabel("mean absolute error")
+        plt.legend()
+        
+    def __plotDiscreteSpeedError(self,ax,name=""):
+        """
+        (deprecated) dropped in favor of faster numpy based function
+        plots average absolute error per discrete speed 
         """
         error = self.y -self.preds
         y_error_df=pd.DataFrame([self.y.flatten(),error.flatten()],index=["y","error"+"_"+name]).T
@@ -668,11 +749,19 @@ class ModelPlots:
         if not subplot :
             plt.figure(figsize=(30,4))
             
+        try :
+            ys = self.data_model.getSplitSequences(
+                                                    self.y[:,idx],
+                                                    self.data_model.sequence_length-self.data_model.input_lag-self.data_model.output_lag+1,
+                                                    skip=self.data_model.input_lag)
+        except (ValueError ,AttributeError):
+            plt.plot(self.y[:,idx] )
+            plt.plot(self.preds[:,idx])
+            return
             
-        ys = self.data_model.getSplitSequences(
-                                                self.y[:,idx],
-                                                self.data_model.sequence_length-self.data_model.input_lag-self.data_model.output_lag+1,
-                                                skip=self.data_model.input_lag)
+
+
+        
         preds = self.data_model.getSplitSequences(
                                                 self.preds[:,idx],
                                                 self.data_model.sequence_length-self.data_model.input_lag-self.data_model.output_lag+1,
@@ -692,7 +781,7 @@ class ModelPlots:
             plt.xticks(ticks = np.arange(len(self.y))[np.r_[:len(self.y)-1:30j].astype(int)],
                        labels = dates[np.r_[:len(self.y)-1:30j].astype(int)],rotation='vertical')
         plt.ylabel("Speed")
-        plt.axvline((self.data_model.valid_split)*self.data_model.x.shape[0],c='r')
+        plt.axvline(self.split_idx,c='r')
         if not plot_error :
             plt.legend(['y','pred','validationSplit'])
         plt.title(" segment : {}, tag : {:}".format(idx,self.data_cleaner.segments_tags.iloc[idx]))
@@ -703,8 +792,10 @@ class ModelPlots:
         plots multiple series using index in "ids" if provided else plots 20 series ordered by mean difference in  predictions
         """
         if ids is None : 
-            ids = np.argsort(self.data_model.y.mean(axis=0)[0]-self.data_model.predict('full').mean(axis=0))[np.r_[:self.data_model.n_segments-1:20j].astype(int)]
-
+            try :
+                ids = np.argsort(self.data_model.y.mean(axis=0)[0]-self.data_model.predict('full').mean(axis=0))[np.r_[:self.data_model.n_segments-1:20j].astype(int)]
+            except AttributeError :
+                ids = np.random.randint(0,len(self.y),10)
         plt.figure(figsize=(24,36))
         for ix, xSample in enumerate(ids):
             plt.subplot(len(ids),1,ix+1)
@@ -717,8 +808,12 @@ class ModelPlots:
         """
         density plot of rounded values of predictions and true data
         """
-        
-        train_split = int(len(self.y)*self.data_model.valid_split)
+        try :
+#             train_split = int(len(self.y)*self.data_model.valid_split)
+            train_split = self.split_idx
+
+        except AttributeError :
+            train_split = len(self.y)
         if split.lower() == 'train':
             prdsVsYDF=pd.DataFrame([self.preds[:train_split].flatten(),self.y[:train_split].flatten()],index=['pred','y'])
         
