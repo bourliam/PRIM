@@ -7,3 +7,5 @@
 .ipynb_checkpoints/
 __pycache__/
 .env
+data/*.json
+.gitignore
