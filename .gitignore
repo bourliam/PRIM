@@ -1,7 +1,11 @@
 /random
 .vscode
-*.json
+.json
+*.html
 *.qgz
 *.zip
 .ipynb_checkpoints/
 __pycache__/
+.env
+data/*.json
+.gitignore

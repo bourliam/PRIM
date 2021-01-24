@@ -1,4 +1,35 @@
-# Projet PRIM : analyse de la congestion routière
+# Projet PRIM : Analyse de la congestion routière
+
+## Table of content
+
+* [Arborescence](#arborescence)
+* [Commandes utiles](#commandes-utiles)
+* [Zone étudiée: Rennes](#zone-étudiée--rennes)
+* [Importer les données OSM dans mongodb](#importer-les-données-osm-dans-mongodb)
+* [Pour visualiser dans QGis](Pour-visualiser-dans-qgis)
+
+## Arborescence
+
+PRIM
+- images
+- Notebooks
+  - access mongoDB.ipynb
+  - Export Ille et vilaine.ipynb
+  - Notebook PRIM.ipynb
+  - Removing irrelevant.ipynb
+  - parallelSegmentAssignation.ipynb
+- scripts
+  - affect_road_to_point.py
+  - affect_road_to_point_para.py
+  - cleaner.py
+  - insert_osm_data.py
+  - speed_matrix.py
+  - exportIlleEtVillaine.py
+  - DataProcessing.py
+  - OsmProcessing.py
+  - Plotting.py
+  - Trips.py
+  - TripsProcessing.py
 
 
 ## Commandes utiles:
@@ -36,6 +67,13 @@ retourner sur le screen avec: screen -R jupyterNotebook
 puis ctrl + C pour l'arreter
 ```
 tuto screens : <https://www.linuxtricks.fr/wiki/screen-plusieurs-terminaux-virtuels-dans-un-seul>
+
+
+Copier une collection:
+
+```
+db.getCollection('collection').aggregate([ { $out: "mycopy" }])
+```
 
 ## Zone étudiée : Rennes
 
@@ -129,9 +167,16 @@ C'est un fork adapté à QGIS 3 de ce plugin : <https://github.com/adrianaksan/q
 
 
 
+## Notes
 
-
-
-
+Affect matching roads
+old version
 10270362 points modified / 10270362 in 10314.604 seconds  => 2h52
+
+now: ~15 min
+
+
+
+cleaner on coyote 2 with timeframe = 15, nb_points = 5
+1975776 points deleted
 
